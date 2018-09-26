@@ -21,8 +21,8 @@ These were created like so:
             10355184993929758713
         ],
         [
-            // barrett reduction for reducing values up to twice
-            // the number of prime bits (double limbs):
+            // Constant used by the Barrett reduction to reducing values up to twice
+            // the number of prime bits (double limbs) mod p:
             // floor(2^(64*numlimbs*2)/p)
             4057416362780367814,
             12897237271039966353,
