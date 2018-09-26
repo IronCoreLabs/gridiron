@@ -1,0 +1,18 @@
+[package]
+name = "gridiron"
+version = "0.1.0"
+authors = ["IronCore Labs <code at ironcorelabs.com>"]
+
+categories = ["cryptography", "wasm"]
+
+keywords = ["finite field", "crypto", "math"]
+
+[dependencies]
+num-traits = "0.2"
+
+[dev-dependencies]
+proptest = "0.8.7"
+rand = "~0.5"
+
+[features]
+unstable = []
