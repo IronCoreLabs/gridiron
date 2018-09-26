@@ -1,4 +1,4 @@
-Gridiron
+Gridiron [![](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) [![](https://travis-ci.org/IronCoreLabs/gridiron.svg?branch=master)](https://travis-ci.org/IronCoreLabs/gridiron?branch=master)
 ====================
 
 This library is a work in progress. To use it, you can either use one of the provided finite fields, or you can call the macro to create your own. The two that are included are:
