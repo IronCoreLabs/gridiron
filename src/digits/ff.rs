@@ -590,6 +590,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         use proptest::prelude::*;
         use rand::OsRng;
 
+        #[test]
+        fn default_is_zero() {
+            assert_eq!($classname::zero(), $classname::default())
+        }
+
         prop_compose! {
             fn arb_fp()(seed in any::<u64>()) -> $classname {
                 if seed == 0 {
