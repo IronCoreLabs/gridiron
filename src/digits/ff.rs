@@ -356,6 +356,13 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
+    impl Default for $classname {
+        #[inline]
+        fn default() -> Self {
+            Zero::zero()
+        }
+    }
+
     impl $classname {
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         #[inline]
