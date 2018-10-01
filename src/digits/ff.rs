@@ -356,6 +356,13 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
+    impl Default for $classname {
+        #[inline]
+        fn default() -> Self {
+            Zero::zero()
+        }
+    }
+
     impl $classname {
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         #[inline]
@@ -582,6 +589,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         // use limb_math;
         use proptest::prelude::*;
         use rand::OsRng;
+
+        #[test]
+        fn default_is_zero() {
+            assert_eq!($classname::zero(), $classname::default())
+        }
 
         prop_compose! {
             fn arb_fp()(seed in any::<u64>()) -> $classname {
