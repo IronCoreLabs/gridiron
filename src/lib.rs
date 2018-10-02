@@ -91,7 +91,6 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     }
 }
 
-
 pub fn eight_limbs_from_sixtyfour_bytes(bytes: [u8; 64]) -> [u64; 8] {
     let mut limbs = [0u64; 8];
     for (i, limb) in limbs.iter_mut().enumerate() {
@@ -597,7 +596,11 @@ mod lib {
             0,
             0,
         ]; // padded to be DOUBLENUMLIMBS long
-        assert!(fp_480::Fp480::reduce_barrett(&twop).iter().all(|limb| *limb == 0));
+        assert!(
+            fp_480::Fp480::reduce_barrett(&twop)
+                .iter()
+                .all(|limb| *limb == 0)
+        );
 
         // p * p = 0
         // (p-5)*(p-4) = p^2 - 4p - 5p + 20 -- any multiple of p is zero, so = 20
@@ -665,7 +668,6 @@ mod lib {
 
     #[test]
     fn neg_test256() {
-        use digits::util::*;
         let a = fp_256::Fp256::one();
         let b = fp_256::Fp256::new([
             6130910713169823785,
