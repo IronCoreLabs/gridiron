@@ -81,7 +81,7 @@ impl From<[u8; 64]> for fp_256::Fp256 {
         // our input is the exact length we need for our
         // optimized barrett reduction
         let limbs = eight_limbs_from_sixtyfour_bytes(src);
-        fp_256::Fp256::new(fp_256::reduce_barrett(&limbs))
+        fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs))
     }
 }
 
@@ -91,7 +91,8 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     }
 }
 
-fn eight_limbs_from_sixtyfour_bytes(bytes: [u8; 64]) -> [u64; 8] {
+
+pub fn eight_limbs_from_sixtyfour_bytes(bytes: [u8; 64]) -> [u64; 8] {
     let mut limbs = [0u64; 8];
     for (i, limb) in limbs.iter_mut().enumerate() {
         for j in (0..U64BYTES).rev() {
@@ -190,13 +191,6 @@ mod lib {
     fn hex_dec_print() {
         let p = fp_480::Fp480::new(fp_480::PRIME);
         assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
-        println!(
-            "Array: {:?}",
-            p.to_bytes_array()
-                .iter()
-                .map(|x| format!("{:02x}", x))
-                .collect::<Vec<String>>()
-        );
         assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
 
         let p = fp_256::Fp256::new(fp_256::PRIME);
@@ -550,7 +544,7 @@ mod lib {
             0x0000000000000000,
         ]; // full 480*2 bits of f's
         assert_eq!(
-            fp_480::reduce_barrett(&yuuuuge),
+            fp_480::Fp480::reduce_barrett(&yuuuuge),
             [
                 12632987041438024573,
                 4408161087846440449,
@@ -575,7 +569,7 @@ mod lib {
         ]; // should not have all FF's as that is more than p^2, and also would require
            // a special case to handle.
         assert_eq!(
-            fp_256::reduce_barrett(&max),
+            fp_256::Fp256::reduce_barrett(&max),
             [
                 7259975683385058220,
                 6648114513626429059,
@@ -603,8 +597,7 @@ mod lib {
             0,
             0,
         ]; // padded to be DOUBLENUMLIMBS long
-        println!("{:?}", fp_480::reduce_barrett(&twop));
-        assert!(fp_480::reduce_barrett(&twop).iter().all(|limb| *limb == 0));
+        assert!(fp_480::Fp480::reduce_barrett(&twop).iter().all(|limb| *limb == 0));
 
         // p * p = 0
         // (p-5)*(p-4) = p^2 - 4p - 5p + 20 -- any multiple of p is zero, so = 20
@@ -643,7 +636,7 @@ mod lib {
             0xc6f716c70741a297,
             0x945f059c,
         ];
-        assert_eq!(fp_480::reduce_barrett(&xsquared), expected);
+        assert_eq!(fp_480::Fp480::reduce_barrett(&xsquared), expected);
         let x = [
             2677753075732170326,
             2697215944595530698,
@@ -660,7 +653,7 @@ mod lib {
             13968087039845073466,
             10355184993072047808,
         ];
-        assert_eq!(fp_256::reduce_barrett(&x), expected);
+        assert_eq!(fp_256::Fp256::reduce_barrett(&x), expected);
     }
 
     #[test]
@@ -681,7 +674,6 @@ mod lib {
             857710904,
         ]);
         assert_eq!(a * b, b);
-        println!("-a * b (limbs)={:?}", (*(-a)).mul_classic(&(*b)[..]));
         assert_eq!(-a * b, -b);
     }
 
@@ -741,7 +733,6 @@ mod lib {
         ]; // this has a most sig of 1 not shown; mod of this should be 'expected'
 
         let fpx = fp_256::Fp256::new(x);
-        println!("\n\n\n\n***** about to call normalize\n");
         assert_eq!(fpx.normalize(1), expected);
 
         assert_eq!(
