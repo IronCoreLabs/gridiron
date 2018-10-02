@@ -1,3 +1,4 @@
+#[macro_export]
 macro_rules! from_unsigned { ($classname: ident; $($T:ty),*) => { $(
     impl From<$T> for $classname {
         fn from(other: $T) -> $classname {
@@ -8,6 +9,7 @@ macro_rules! from_unsigned { ($classname: ident; $($T:ty),*) => { $(
     }
 )+ }}
 
+#[macro_export]
 macro_rules! from_signed { ($classname: ident; $($T:ty),*) => { $(
     impl From<$T> for $classname {
         fn from(other: $T) -> $classname {
@@ -32,8 +34,8 @@ macro_rules! from_signed { ($classname: ident; $($T:ty),*) => { $(
 /// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(64*numlimbs*2)/prime)`.
 #[macro_export]
 macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr) => { pub mod $modname {
-    use digits::util::*;
-    use digits::signed::*;
+    use $crate::digits::util::*;
+    use $crate::digits::signed::*;
     use std::cmp::Ordering;
     use std::fmt;
     use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
@@ -182,8 +184,8 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     impl MulAssign for $classname {
         #[inline]
         fn mul_assign(&mut self, rhs: $classname) {
-            let doublesize = mul_limbs_classic(&self.limbs, &rhs.limbs);
-            self.limbs = reduce_barrett(&doublesize);
+            let doublesize = $classname::mul_limbs_classic(&self.limbs, &rhs.limbs);
+            self.limbs = $classname::reduce_barrett(&doublesize);
         }
     }
 
@@ -422,9 +424,9 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         ///Square the value. Same as a value times itself, but slightly more performant.
         #[inline]
         pub fn square(&self) -> $classname {
-            let doublesize = mul_limbs_classic(&self.limbs, &self.limbs);
+            let doublesize = $classname::mul_limbs_classic(&self.limbs, &self.limbs);
             $classname {
-                limbs: reduce_barrett(&doublesize),
+                limbs: $classname::reduce_barrett(&doublesize),
             }
         }
 
@@ -519,66 +521,66 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             }
         }
 
-    }
 
-    // From Handbook of Applied Crypto algo 14.12
-    #[inline]
-    fn mul_limbs_classic(a: &[u64; NUMLIMBS], b: &[u64; NUMLIMBS]) -> [u64; NUMDOUBLELIMBS] {
-        let mut res = [0u64; NUMDOUBLELIMBS];
-        for i in 0..NUMLIMBS {
-            let mut c = 0;
-            for j in 0..NUMLIMBS {
-                let (mut u, mut v) = mul_1_limb_by_1_limb(a[j], b[i]);
-                v = add_accum_1by1(v, c, &mut u);
-                v = add_accum_1by1(v, res[i + j], &mut u);
-                res[i + j] = v;
-                c = u;
+        // From Handbook of Applied Crypto algo 14.12
+        #[inline]
+        fn mul_limbs_classic(a: &[u64; NUMLIMBS], b: &[u64; NUMLIMBS]) -> [u64; NUMDOUBLELIMBS] {
+            let mut res = [0u64; NUMDOUBLELIMBS];
+            for i in 0..NUMLIMBS {
+                let mut c = 0;
+                for j in 0..NUMLIMBS {
+                    let (mut u, mut v) = mul_1_limb_by_1_limb(a[j], b[i]);
+                    v = add_accum_1by1(v, c, &mut u);
+                    v = add_accum_1by1(v, res[i + j], &mut u);
+                    res[i + j] = v;
+                    c = u;
+                }
+                res[i + NUMLIMBS] = c;
             }
-            res[i + NUMLIMBS] = c;
+            res
         }
-        res
-    }
 
-    // From Handbook of Applied Cryptography 14.42
-        // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
-        // OUTPUT: r = x mod m.
-        // 1. q1←⌊x/bk−1⌋, q2←q1 · μ, q3←⌊q2/bk+1⌋.
-        // 2. r1←x mod bk+1, r2←q3 · m mod bk+1, r←r1 − r2. 3. Ifr<0thenr←r+bk+1.
-        // 4. Whiler≥mdo:r←r−m.
-        // 5. Return(r).
-    // Also helpful: https://www.everything2.com/title/Barrett+Reduction
-    #[inline]
-    pub fn reduce_barrett(a: &[u64; NUMDOUBLELIMBS]) -> [u64; NUMLIMBS] {
-        // In this case, k = NUMLIMBS
-        // let mut q1 = [0u64; NUMLIMBS];
-        // q1.copy_from_slice(&a[NUMLIMBS - 1..NUMDOUBLELIMBS-1]);
-        let q1 = a.shift_right_digits(NUMLIMBS - 1);
+        // From Handbook of Applied Cryptography 14.42
+            // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
+            // OUTPUT: r = x mod m.
+            // 1. q1←⌊x/bk−1⌋, q2←q1 · μ, q3←⌊q2/bk+1⌋.
+            // 2. r1←x mod bk+1, r2←q3 · m mod bk+1, r←r1 − r2. 3. Ifr<0thenr←r+bk+1.
+            // 4. Whiler≥mdo:r←r−m.
+            // 5. Return(r).
+        // Also helpful: https://www.everything2.com/title/Barrett+Reduction
+        #[inline]
+        pub fn reduce_barrett(a: &[u64; NUMDOUBLELIMBS]) -> [u64; NUMLIMBS] {
+            // In this case, k = NUMLIMBS
+            // let mut q1 = [0u64; NUMLIMBS];
+            // q1.copy_from_slice(&a[NUMLIMBS - 1..NUMDOUBLELIMBS-1]);
+            let q1 = a.shift_right_digits(NUMLIMBS - 1);
 
-        // q2 = q1 * mu
-        // let q2 = BARRETTMU.mul_classic(&q1);
-        let q2 = q1.mul_classic(&BARRETTMU[..]);
+            // q2 = q1 * mu
+            // let q2 = BARRETTMU.mul_classic(&q1);
+            let q2 = q1.mul_classic(&BARRETTMU[..]);
 
-        let mut q3 = [0u64; NUMLIMBS];
-        q3.copy_from_slice(&q2[NUMLIMBS + 1..NUMDOUBLELIMBS + 1]);
+            let mut q3 = [0u64; NUMLIMBS];
+            q3.copy_from_slice(&q2[NUMLIMBS + 1..NUMDOUBLELIMBS + 1]);
 
-        let mut r1 = [0u64; NUMLIMBS + 2];
-        r1.copy_from_slice(&a[..NUMLIMBS+2]);
+            let mut r1 = [0u64; NUMLIMBS + 2];
+            r1.copy_from_slice(&a[..NUMLIMBS+2]);
 
-        let r2 = &q3.mul_classic(&PRIME)[..NUMLIMBS + 1];
+            let r2 = &q3.mul_classic(&PRIME)[..NUMLIMBS + 1];
 
-        // r = r1 - r2
-        let (r3, _) = r1.expand_one().sub(&r2);
-        let mut r = [0u64; NUMLIMBS]; // need to chop off extra limb
-        r.copy_from_slice(&r3[..NUMLIMBS]);
+            // r = r1 - r2
+            let (r3, _) = r1.expand_one().sub(&r2);
+            let mut r = [0u64; NUMLIMBS]; // need to chop off extra limb
+            r.copy_from_slice(&r3[..NUMLIMBS]);
 
-        // at most two subtractions with p
-        for _i in 0..2 {
-            if cmp(&r, &PRIME) != Some(Ordering::Less) {
-                r.sub_assign(&PRIME);
+            // at most two subtractions with p
+            for _i in 0..2 {
+                if cmp(&r, &PRIME) != Some(Ordering::Less) {
+                    r.sub_assign(&PRIME);
+                }
             }
+            debug_assert!(cmp(&r, &PRIME) == Some(Ordering::Less));
+            r
         }
-        debug_assert!(cmp(&r, &PRIME) == Some(Ordering::Less));
-        r
     }
 
 
