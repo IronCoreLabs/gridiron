@@ -1,3 +1,4 @@
+use digits::constant_time_primitives::*;
 use digits::util::*;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -69,9 +70,8 @@ impl<T: DigitsArray + Clone> ShrAssign<usize> for SignedDigitsArray<T> {
     #[inline]
     fn shr_assign(&mut self, rhs: usize) {
         self.limbs.shift_right_bits_assign(rhs);
-        if self.is_zero() {
-            self.negative = false;
-        }
+        let newsign = (self.is_zero() as u64).mux(0, self.negative as u64);
+        self.negative = newsign != 0;
     }
 }
 
@@ -79,11 +79,8 @@ impl<T: DigitsArray + Clone> Neg for SignedDigitsArray<T> {
     type Output = SignedDigitsArray<T>;
     #[inline]
     fn neg(mut self) -> SignedDigitsArray<T> {
-        if self.is_zero() {
-            self.negative = false;
-        } else {
-            self.negative = !self.negative;
-        }
+        let adj = (self.is_zero() as u64).mux(0, !self.negative as u64);
+        self.negative = adj != 0;
         self
     }
 }
@@ -94,11 +91,8 @@ impl<T: DigitsArray + Clone> AddAssign for SignedDigitsArray<T> {
         let newsign = self
             .limbs
             .add_assign_signed(self.negative, other.limbs, other.negative);
-        if self.is_zero() {
-            self.negative = false;
-        } else {
-            self.negative = newsign;
-        }
+        let adj = (self.is_zero() as u64).mux(0, newsign as u64);
+        self.negative = adj != 0;
     }
 }
 
@@ -134,33 +128,35 @@ impl<T: DigitsArray + Clone> SubAssign for SignedDigitsArray<T> {
         let newsign = self
             .limbs
             .sub_assign_signed(self.negative, other.limbs, other.negative);
-        if self.is_zero() {
-            self.negative = false;
-        } else {
-            self.negative = newsign;
-        }
+        let adj = (self.is_zero() as u64).mux(0, newsign as u64);
+        self.negative = adj != 0;
     }
 }
 
 impl<T: DigitsArray + Clone> SubAssign<i64> for SignedDigitsArray<T> {
     #[inline]
     fn sub_assign(&mut self, other: i64) {
-        if other < 0 {
-            self.sub_assign(Self::new_neg(T::from_u64((other * -1) as u64)));
-        } else {
-            self.sub_assign(Self::new_pos(T::from_u64(other as u64)));
-        }
+        let ctl = other.const_lt(0) as u64;
+        let lowlimb = ctl.mux((other * -1) as u64, other as u64);
+        let isneg = ctl == 1;
+        let rhs = Self::new(isneg, T::from_u64(lowlimb));
+        self.sub_assign(rhs);
     }
 }
 
 impl<T: DigitsArray + Clone + PartialEq + Debug> PartialOrd for SignedDigitsArray<T> {
     #[inline]
     fn partial_cmp(&self, other: &SignedDigitsArray<T>) -> Option<Ordering> {
+        let cmp = DigitsArray::cmp(&self.limbs, &other.limbs);
+        let cmprev = cmp.map(|o| o.reverse());
+
+        // I think this match is still constant time since work isn't
+        // different on any of the branches and all calculations are above
         match (self.negative, other.negative) {
-            (false, true) => Some(Ordering::Greater),       // pos > neg
-            (true, false) => Some(Ordering::Less),          // neg < pos
-            (false, false) => self.limbs.cmp(&other.limbs), // positive so bigger is greater
-            (true, true) => other.limbs.cmp(&self.limbs),   // negative so smaller is greater
+            (false, true) => Some(Ordering::Greater), // pos > neg
+            (true, false) => Some(Ordering::Less),    // neg < pos
+            (false, false) => cmp,                    // positive so bigger is greater
+            (true, true) => cmprev,                   // negative so smaller is greater
         }
     }
 }

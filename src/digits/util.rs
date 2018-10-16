@@ -1,3 +1,5 @@
+// use digits::constant_time_primitives::*;
+use digits::constant_time_primitives::*;
 use std::cmp::Ordering;
 use std::num::Wrapping;
 
@@ -10,7 +12,12 @@ pub trait DigitsArray<T = u64> {
     type TARRAYCARRY;
     type TARRAYPAIR;
     type TARRAYT;
+    fn const_all<F>(&self, f: F) -> bool
+    where
+        Self: Sized,
+        F: Fn(T) -> bool;
     fn zero() -> Self;
+    fn one() -> Self;
     fn from_u64(d: u64) -> Self;
     fn is_zero(&self) -> bool;
     fn is_one(&self) -> bool;
@@ -51,6 +58,7 @@ pub trait DigitsArray<T = u64> {
     fn populate_padded_mostsig_from_slice(y: &[u64]) -> Self;
     fn b64_to_b32(input: Self) -> Self::TARRAYTIMESTWO;
     fn cmp(&self, y: &(Self)) -> Option<Ordering>;
+    fn cmpi(&self, y: &(Self)) -> i64;
     fn greater_or_equal(&self, y: &(Self)) -> bool;
     fn less_or_equal(&self, y: &(Self)) -> bool;
     fn greater(&self, y: &(Self)) -> bool;
@@ -77,7 +85,9 @@ impl<'a> DigitsSlice<u64> for &'a mut [u64] {
         for (i, a) in self.iter_mut().enumerate() {
             // constant time means we dynamically pad b if it's shorter
             // rather than shortcutting the loop
-            let b = if i >= other.len() { 0u64 } else { other[i] };
+            let ge = (i as u64).const_ge(other.len() as u64);
+            let dummyindex = ge.mux(0, i as u64) as usize;
+            let b = ge.mux(0, other[dummyindex]);
             let sum = a.wrapping_add(b);
             let olda = *a;
             *a = sum.wrapping_add(carry as u64);
@@ -94,7 +104,9 @@ impl<'a> DigitsSlice<u64> for &'a mut [u64] {
         for (i, a) in self.iter_mut().enumerate() {
             // constant time means we dynamically pad b if it's shorter
             // rather than shortcutting the loop
-            let b = if i >= other.len() { 0u64 } else { other[i] };
+            let ge = (i as u64).const_ge(other.len() as u64);
+            let dummyindex = ge.mux(0, i as u64) as usize;
+            let b = ge.mux(0, other[dummyindex]);
             let diff = a.wrapping_sub(b);
             let olda = *a;
             *a = diff.wrapping_sub(borrow as u64);
@@ -104,26 +116,26 @@ impl<'a> DigitsSlice<u64> for &'a mut [u64] {
     }
     #[inline]
     fn greater_or_equal(&self, y: &[u64]) -> bool {
-        cmp(&self[..], &y[..]) != Some(Ordering::Less)
+        cmpslice(&self[..], &y[..]) != Some(Ordering::Less)
     }
     #[inline]
     fn less_or_equal(&self, y: &[u64]) -> bool {
-        cmp(&self[..], &y[..]) != Some(Ordering::Greater)
+        cmpslice(&self[..], &y[..]) != Some(Ordering::Greater)
     }
     #[inline]
     fn greater(&self, y: &[u64]) -> bool {
-        cmp(&self[..], &y[..]) == Some(Ordering::Greater)
+        cmpslice(&self[..], &y[..]) == Some(Ordering::Greater)
     }
     #[inline]
     fn less(&self, y: &[u64]) -> bool {
-        cmp(&self[..], &y[..]) == Some(Ordering::Less)
+        cmpslice(&self[..], &y[..]) == Some(Ordering::Less)
     }
 }
 
 /// Can't be generic with fixed size arrays, so we make
 /// an implementation of our multi-precision math for
 /// every array size that we might use.
-macro_rules! digits_u64_impls { ($($N:expr)+) => {
+macro_rules! digits_u64_impls { ($($M:ident $N:expr),+) => {
         $(
             impl DigitsArray<u64> for [u64; $N] {
                 type TARRAYPLUSONE = [u64; $N+1];
@@ -149,9 +161,24 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                     ret
                 }
 
+                /// The general `.iter().all()` function short circuits. This does not.
+                #[inline]
+                fn const_all<F>(&self, f: F) -> bool where Self: Sized, F: Fn(u64) -> bool {
+                    let mut ret = true;
+                    self.iter().for_each(|x| ret &= f(*x));
+                    ret
+                }
+
                 #[inline]
                 fn zero() -> Self {
                     [0u64; $N]
+                }
+
+                #[inline]
+                fn one() -> Self {
+                    let mut ret = [0u64; $N];
+                    ret[0] = 1;
+                    ret
                 }
 
                 #[inline]
@@ -163,12 +190,14 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
 
                 #[inline]
                 fn is_zero(&self) -> bool {
-                    self.iter().all(|limb| limb == &0u64)
+                    self.const_all(|limb| limb == 0u64)
                 }
 
                 #[inline]
                 fn is_one(&self) -> bool {
-                    self[0] == 1u64 && self.iter().skip(1).all(|limb| limb == &0u64)
+                    let mut ret = true;
+                    self.iter().skip(1).for_each(|limb| ret &= limb == &0u64);
+                    self[0] == 1u64 && ret
                 }
 
                 #[inline]
@@ -191,13 +220,13 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                 fn mul_by_digit(&self, y: u64) -> Self::TARRAYPLUSONE {
                     let mut ret = [0u64; $N + 1];
 
-                    for (i, biglimb) in self.iter().enumerate() {
+                    for (i, biglimb) in self.iter().take($N - 1).enumerate() {
                         let (hi, lo) = mul_1_limb_by_1_limb(*biglimb, y);
                         ret[i] = ret[i].wrapping_add(lo);
-                        if i < $N {
-                            ret[i + 1] = ret[i+1].wrapping_add(hi).wrapping_add((ret[i] < lo) as u64);
-                        }
+                            ret[i + 1] = ret[i+1].wrapping_add(hi).wrapping_add(ret[i].const_lt(lo));
                     }
+                    let (_, lo) = mul_1_limb_by_1_limb(self[$N-1], y);
+                    ret[$N - 1] = ret[$N - 1].wrapping_add(lo);
                     ret
                 }
 
@@ -274,7 +303,10 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                     for (i, a) in self.iter_mut().enumerate() {
                         // constant time means we dynamically pad b if it's shorter
                         // rather than shortcutting the loop
-                        let b = if i >= other.len() { 0u64 } else { other[i] };
+                        // let b = if i >= other.len() { 0u64 } else { other[i] };
+                        let ge = (i as u64).const_ge(other.len() as u64);
+                        let dummyindex = ge.mux(0, i as u64) as usize;
+                        let b = ge.mux(0, other[dummyindex]);
                         let diff = a.wrapping_sub(b);
                         let olda = *a;
                         *a = diff.wrapping_sub(borrow as u64);
@@ -293,7 +325,9 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                     for (i, a) in self.iter_mut().enumerate() {
                         // constant time means we dynamically pad b if it's shorter
                         // rather than shortcutting the loop
-                        let b = if i >= other.len() { 0u64 } else { other[i] };
+                        let ge = (i as u64).const_ge(other.len() as u64);
+                        let dummyindex = ge.mux(0, i as u64) as usize;
+                        let b = ge.mux(0, other[dummyindex]);
                         let diff = a.wrapping_sub(b);
                         let olda = *a;
                         *a = diff.wrapping_sub(borrow as u64);
@@ -318,8 +352,9 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                 }
 
                 /// returns true if result is negative
+                // TODO: not constant
                 fn sub_assign_signed(&mut self, self_is_neg: bool, other: [u64; $N], other_is_neg: bool) -> bool {
-                    match (self_is_neg, other_is_neg, cmp(&*self, &other)) {
+                    match (self_is_neg, other_is_neg, DigitsArray::cmp(&*self, &other)) {
                         (false, false, Some(Ordering::Less)) => {
                             // self - other -> neg; other > self
                             *self = other.sub_ignore_carry(&*self);
@@ -370,7 +405,9 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                     for (i, a) in self.iter_mut().enumerate() {
                         // constant time means we dynamically pad b if it's shorter
                         // rather than shortcutting the loop
-                        let b = if i >= other.len() { 0u64 } else { other[i] };
+                        let ge = (i as u64).const_ge(other.len() as u64);
+                        let dummyindex = ge.mux(0, i as u64) as usize;
+                        let b = ge.mux(0, other[dummyindex]);
                         let sum = a.wrapping_add(b);
                         let olda = *a;
                         *a = sum.wrapping_add(carry as u64);
@@ -380,14 +417,16 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                 }
 
                 /// This is a copy of add_assign but takes a fixed size array,.
-                /// TODO: use a macro os some such to make this DRY
+                /// TODO: use a macro or some such to make this DRY
                 #[inline]
                 fn add_assign_equiv(&mut self, other: [u64; $N]) -> bool {
                     let mut carry = false;
                     for (i, a) in self.iter_mut().enumerate() {
                         // constant time means we dynamically pad b if it's shorter
                         // rather than shortcutting the loop
-                        let b = if i >= other.len() { 0u64 } else { other[i] };
+                        let ge = (i as u64).const_ge(other.len() as u64);
+                        let dummyindex = ge.mux(0, i as u64) as usize;
+                        let b = ge.mux(0, other[dummyindex]);
                         let sum = a.wrapping_add(b);
                         let olda = *a;
                         *a = sum.wrapping_add(carry as u64);
@@ -404,12 +443,6 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
 
                 #[inline]
                 fn copy(&self) -> [u64; $N] {
-                    // let mut x = [0u64; $N];
-                    // for (from, to) in self.iter().zip(x.iter_mut()) {
-                    //     *to = *from;
-                    // }
-                    // x
-                    // implicit copy
                     *self
                 }
 
@@ -484,11 +517,9 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                 fn shift_left_digits_assign(&mut self, shifts: usize) {
                     debug_assert!(shifts <= $N);
                     for i in (0 .. $N).rev() {
-                        if i >= shifts {
-                            self[i] = self[i - shifts];
-                        } else {
-                            self[i] = 0;
-                        }
+                        let ge = (i as u64).const_ge(shifts as u64);
+                        let dummyindex = ge.mux((i as u64).wrapping_sub(shifts as u64), 0) as usize;
+                        self[i] = (i as u64).const_ge(shifts as u64).mux(self[dummyindex], 0);
                     }
                 }
 
@@ -504,11 +535,14 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
                 fn shift_right_digits_assign(&mut self, shifts: usize) {
                     debug_assert!(shifts <= $N);
                     for i in 0 .. $N {
-                        if i + shifts < $N {
-                            self[i] = self[i + shifts];
-                        } else {
-                            self[i] = 0;
-                        }
+                        // if i + shifts < $N {
+                        //     self[i] = self[i + shifts];
+                        // } else {
+                        //     self[i] = 0;
+                        // }
+                        let lt = ((i+shifts) as u64).const_lt($N);
+                        let dummyindex = lt.mux((i+shifts) as u64, 0) as usize;
+                        self[i] = lt.mux(self[dummyindex], 0);
                     }
                 }
 
@@ -521,25 +555,15 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
 
                 #[inline]
                 fn shift_right_bits_assign(&mut self, bits: usize) {
-                    if bits < 64 {
-                        let mut lowbits = 0u64;
-                        for d in self.iter_mut().rev() {
-                            let tmp = *d << (64 - bits);
-                            *d >>= bits;
-                            *d |= lowbits;
-                            lowbits = tmp;
-                        }
-                    } else if bits < $N*64 {
-                        let limbs = bits / 64;
-                        let newshift = bits % 64;
-                        self.shift_right_digits_assign(limbs);
-                        self.shift_right_bits_assign(newshift); // recurse once
-                    } else {
-                        // shifted off the edge of the earth
-                        // zero out
-                        for d in self.iter_mut() {
-                            *d = 0;
-                        }
+                    let limbshift = bits / 64;
+                    let newshift = bits % 64;
+                    self.shift_right_digits_assign(limbshift); // constant time and works okay with zero
+                    let mut lowbits = 0u64;
+                    for d in self.iter_mut().rev() {
+                        let tmp = *d << (64 - newshift);
+                        *d >>= newshift;
+                        *d |= lowbits;
+                        lowbits = tmp;
                     }
                 }
 
@@ -552,59 +576,148 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
 
                 #[inline]
                 fn shift_left_bits_assign(&mut self, bits: usize) {
-                    if bits < 64 {
-                        let mut highbits = 0u64;
-                        for d in self.iter_mut() {
-                            let tmp = *d >> (64 - bits);
-                            *d <<= bits;
-                            *d |= highbits;
-                            highbits = tmp;
-                        }
-                    } else if bits < $N*64 {
-                        let limbs = bits / 64;
-                        let newshift = bits % 64;
-                        self.shift_left_digits_assign(limbs);
-                        self.shift_left_bits_assign(newshift); // recurse once
-                    } else {
-                        // shifted off the edge of the earth
-                        // zero out
-                        for d in self.iter_mut() {
-                            *d = 0;
+                    let limbs = bits / 64;
+                    let newshift = bits % 64;
+                    self.shift_left_digits_assign(limbs);
+                    let mut highbits = 0u64;
+                    for d in self.iter_mut() {
+                        let tmp = *d >> (64 - newshift);
+                        *d <<= newshift;
+                        *d |= highbits;
+                        highbits = tmp;
+                    }
+                }
+
+                #[inline]
+                fn cmp(&self, y: &(Self)) -> Option<Ordering> {
+                    match self.cmpi(y) {
+                        -1 => Some(Ordering::Less),
+                        0 => Some(Ordering::Equal),
+                        1 => Some(Ordering::Greater),
+                        _ => None
+                    }
+                }
+
+                #[inline]
+                fn cmpi(&self, y: &(Self)) -> i64 {
+                    let mut res = 0i64;
+                    self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
+                        let limbcmp = (l.const_gt(*r) as i64) | -(r.const_gt(*l) as i64);
+                        res = res.abs().mux(res, limbcmp);
+                    });
+                    res
+                }
+
+                #[inline]
+                fn greater_or_equal(&self, y: &(Self)) -> bool {
+                    DigitsArray::cmp(self, &y) != Some(Ordering::Less)
+                }
+                #[inline]
+                fn less_or_equal(&self, y: &(Self)) -> bool {
+                    DigitsArray::cmp(self, &y) != Some(Ordering::Greater)
+                }
+                #[inline]
+                fn greater(&self, y: &(Self)) -> bool {
+                    DigitsArray::cmp(self, &y) == Some(Ordering::Greater)
+                }
+                #[inline]
+                fn less(&self, y: &(Self)) -> bool {
+                    DigitsArray::cmp(self, &y) == Some(Ordering::Less)
+                }
+            }
+
+            #[cfg(test)]
+            mod $M {
+                use super::*;
+                // use limb_math;
+                use proptest::prelude::*;
+                use rand::{OsRng, Rng};
+
+                prop_compose! {
+                    fn arb_limbs()(seed in any::<u64>()) -> [u64; $N] {
+                        if seed == 0 {
+                            [0u64; $N]
+                        } else if seed == 1 {
+                            let mut ret = [0u64; $N];
+                            ret[0] = 1;
+                            ret
+                        } else {
+                            let mut rng = OsRng::new().expect("Failed to get random number");
+                            let mut limbs = [0u64; $N];
+                            for limb in limbs.iter_mut() {
+                                *limb = rng.next_u64();
+                            }
+                            limbs
                         }
                     }
                 }
 
+                proptest! {
+                    #[test]
+                    fn divrem_random(ref a in arb_limbs(), b in any::<u64>()) {
+                        prop_assume!(b != 0);
+                        let (quotient, remainder) = a.div_rem_1(b);
+                        let a_back = quotient.mul_add_by_digit(b, remainder);
+                        assert_eq!(&(a)[..], &a_back[..$N]);
+                    }
 
-                #[inline]
-                fn cmp(&self, y: &(Self)) -> Option<Ordering> {
-                    cmp(&self[..], &y[..])
+                    #[test]
+                    fn identity(a in arb_limbs()) {
+                        prop_assert_eq!(a.mul_by_digit(1), a.expand_one());
+
+                        // prop_assert_eq!(a.mul_classic(&<[u64; $N]>::one()), <[u64; $N*2]>::from(a));
+                        prop_assert_eq!(a.mul_add_by_digit(1, 0), a.expand_one());
+                        prop_assert_eq!(a.add_ignore_carry(&[0]), a);
+                        prop_assert_eq!(a.add_ignore_carry(&<[u64; $N]>::zero()), a);
+
+                        prop_assert_eq!(a.sub_ignore_carry(&<[u64; $N]>::zero()), a);
+
+                        // prop_assert_eq!(a / a, $classname::one());
+                        // prop_assert_eq!(a.pow(0), $classname::one());
+                        // prop_assert_eq!(a.pow(1), a);
+                    }
+
+
+                    #[test]
+                    fn zero(a in arb_limbs()) {
+                        assert_eq!(a.mul_by_digit(0), [0u64; $N+1]);
+                        // assert_eq!(a.mul_classic(&<[u64; $N]>::zero()), [0u64; $N*2]);
+                        assert_eq!(a.sub(&a), (<[u64; $N]>::zero(), false));
+                    }
+
+                    #[test]
+                    fn commutative(a in arb_limbs(), b in arb_limbs()) {
+                        prop_assert_eq!(a.add(&b), b.add(&a));
+                        // prop_assert_eq!(a.mul_classic_equiv(b), b.mul_classic_equiv * a);
+                    }
+
+                    #[test]
+                    fn associative(a in arb_limbs(), b in arb_limbs(), c in arb_limbs()) {
+                        prop_assert_eq!(a.add_ignore_carry(&b).add_ignore_carry(&c), a.add_ignore_carry(&b.add_ignore_carry(&c)));
+                        // prop_assert_eq!((a * b) * c , a * (b * c));
+                    }
+
+                    #[test]
+                    #[ignore]
+                    fn distributive(a in arb_limbs(), b in arb_limbs(), c in arb_limbs()) {
+                        // prop_assert_eq!(a * (b + c) , a * b + a * c);
+                        // prop_assert_eq!((a + b) * c , a * c + b * c);
+                        // prop_assert_eq!((a - b) * c , a * c - b * c);
+                    }
+
                 }
-                #[inline]
-                fn greater_or_equal(&self, y: &(Self)) -> bool {
-                    cmp(&self[..], &y[..]) != Some(Ordering::Less)
-                }
-                #[inline]
-                fn less_or_equal(&self, y: &(Self)) -> bool {
-                    cmp(&self[..], &y[..]) != Some(Ordering::Greater)
-                }
-                #[inline]
-                fn greater(&self, y: &(Self)) -> bool {
-                    cmp(&self[..], &y[..]) == Some(Ordering::Greater)
-                }
-                #[inline]
-                fn less(&self, y: &(Self)) -> bool {
-                    cmp(&self[..], &y[..]) == Some(Ordering::Less)
-                }
+
             }
         )+
 }}
 
 digits_u64_impls! {
-    2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19
+    a2 2, a3 3, a4 4, a5 5, a6 6, a7 7, a8 8, a9 9, a10 10, a11 11, a12 12, a13 13, a14 14, a15 15, a16 16, a17 17, a18 18, a19 19
 }
 
+// TODO: not constant time (variable size limbs makes this tricky)
 #[inline]
-pub fn cmp(x: &[u64], y: &[u64]) -> Option<Ordering> {
+pub fn cmpslice(x: &[u64], y: &[u64]) -> Option<Ordering> {
     let x_len = x.iter().rev().skip_while(|limb| **limb == 0u64).count();
     let y_len = y.iter().rev().skip_while(|limb| **limb == 0u64).count();
     match x_len.cmp(&y_len) {
@@ -686,46 +799,44 @@ pub fn mul_1_limb_by_1_limb_array(u: u64, v: u64) -> [u64; 2] {
 pub fn xdiv_2_limbs_by_1_limb(u1: u64, u0: u64, v: u64) -> (u64, u64) {
     let mut q = 0u64;
 
-    let mut hi = if u1 == v { 0 } else { u1 };
+    let mut hi = u1.const_eq(v).mux(0, u1);
     let mut lo = u0;
     for k in (1..64).rev() {
         let j: usize = 64 - k;
         let w = (hi << j) | (lo >> k);
-        // let ctl = if w >= v { (hi >> k) + 1 } else { hi >> k };
-        let ctl = (if w >= v { 1 } else { 0 }) | (hi >> k);
+        // let ctl = (if w >= v { 1 } else { 0 }) | (hi >> k);
+        let ctl = w.const_ge(v) | (hi >> k);
         let hi2 = w.wrapping_sub(v) >> j;
         let lo2 = lo.wrapping_sub(v << k);
-        hi = if ctl > 0 { hi2 } else { hi };
-        lo = if ctl > 0 { lo2 } else { lo };
+        hi = ctl.mux(hi2, hi);
+        lo = ctl.mux(lo2, lo);
         q |= ctl << k;
     }
-    let cf = (if lo >= v { 1 } else { 0 }) | hi;
+    // let cf = (if lo >= v { 1 } else { 0 }) | hi;
+    let cf = lo.const_ge(v) | hi;
     q |= cf;
-    let r = if cf > 0 { lo.wrapping_sub(v) } else { lo };
+    let r = cf.mux(lo.wrapping_sub(v), lo);
     // println!("{} {} / {} = {} rem {}", u1, u0, v, q, r);
     (q, r)
 }
+
 pub fn div_2_limbs_by_1_limb(u1: u64, u0: u64, v: u64) -> (u64, u64, u64) {
-    let mut q1 = 0u64;
+    // let mut q1 = 0u64;
     let q0: u64;
     let r: u64;
 
-    if v <= u1 {
-        q1 = u1 / v;
-        let k = u1 % v;
-        let (_, tmpq0, tmpr) = div_2_limbs_by_1_limb(k, u0, v);
-        q0 = tmpq0;
-        r = tmpr;
-    } else {
-        let (tmpq0, tmpr) = xdiv_2_limbs_by_1_limb(u1, u0, v);
-        q0 = tmpq0;
-        r = tmpr;
-    }
+    let ctl = v.const_le(u1);
+    let q1 = ctl.mux(u1 / v, 0);
+    let k = ctl.mux(u1 % v, u1);
+    let (tmpq0, tmpr) = xdiv_2_limbs_by_1_limb(k, u0, v);
+    q0 = tmpq0;
+    r = tmpr;
     (q1, q0, r)
 }
 
 // only need to return quotient for this helper func
 // assume everything is already normalized so y[1] has high bit set
+// TODO: not constant time
 #[inline]
 pub fn div_3_limbs_by_2_limbs(u: [u64; 3], v: [u64; 2]) -> [u64; 2] {
     // debug_assert!(v[1].leading_zeros() == 0);
@@ -738,7 +849,7 @@ pub fn div_3_limbs_by_2_limbs(u: [u64; 3], v: [u64; 2]) -> [u64; 2] {
     let (q1, q0, mut rest) = div_2_limbs_by_1_limb(u[2], u[1], v[1]);
     let mut qest = [q0, q1];
     // let mut restoverflow = false;
-    while let Some(Ordering::Greater) = cmp(&(qest.mul_by_digit(v[0])), &[u[0], rest]) {
+    while let Some(Ordering::Greater) = cmpslice(&(qest.mul_by_digit(v[0])), &[u[0], rest]) {
         qest.sub_assign(&[1]);
         let (newrest, overflow) = rest.overflowing_add(v[1]);
         rest = newrest;
@@ -844,26 +955,33 @@ mod tests {
         }
     }
 
-    proptest! {
-        #[test]
-        fn divrem_random(ref a in arb_limbs8(), b in any::<u64>()) {
-            prop_assume!(b != 0);
-            let (quotient, remainder) = a.div_rem_1(b);
-            let a_back = quotient.mul_add_by_digit(b, remainder);
-            assert_eq!(&(a)[..], &a_back[..8]);
-        }
-    }
+    proptest!{}
 
     #[test]
     fn limbs_compare() {
-        assert_eq!(cmp(&[0, 0], &[1, 0]), Some(Ordering::Less));
-        assert_eq!(cmp(&[1, 0], &[1, 0]), Some(Ordering::Equal));
-        assert_eq!(cmp(&[1, 0], &[0, 0]), Some(Ordering::Greater));
-        assert_eq!(cmp(&[0, 0, 1], &[0, 0]), Some(Ordering::Greater));
-        assert_eq!(cmp(&[1, 0, 0], &[1]), Some(Ordering::Equal)); // 001 == 1
-        assert_eq!(cmp(&[2, 0, 0], &[1]), Some(Ordering::Greater)); // 2 > 1
+        assert_eq!(cmpslice(&[0, 0], &[1, 0]), Some(Ordering::Less));
+        assert_eq!(cmpslice(&[1, 0], &[1, 0]), Some(Ordering::Equal));
+        assert_eq!(cmpslice(&[1, 0], &[0, 0]), Some(Ordering::Greater));
+        assert_eq!(cmpslice(&[0, 0, 1], &[0, 0]), Some(Ordering::Greater));
+        assert_eq!(cmpslice(&[1, 0, 0], &[1]), Some(Ordering::Equal)); // 001 == 1
+        assert_eq!(cmpslice(&[2, 0, 0], &[1]), Some(Ordering::Greater)); // 2 > 1
         assert_eq!(
-            cmp(&[0xFFFFFFFFFFFFFFFF, 0, 0], &[0, 1]),
+            cmpslice(&[0xFFFFFFFFFFFFFFFF, 0, 0], &[0, 1]),
+            Some(Ordering::Less)
+        ); // 2 > 1
+    }
+
+    #[test]
+    fn limbs_compare_constant_equal() {
+        assert_eq!(DigitsArray::cmp(&[0, 0], &[1, 0]), Some(Ordering::Less));
+        assert_eq!(DigitsArray::cmp(&[1, 0], &[1, 0]), Some(Ordering::Equal));
+        assert_eq!(DigitsArray::cmp(&[1, 0], &[0, 0]), Some(Ordering::Greater));
+        assert_eq!(
+            DigitsArray::cmp(&[0, 0, 1], &[0, 0, 0]),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            DigitsArray::cmp(&[0xFFFFFFFFFFFFFFFF, 0, 0], &[0, 1, 0]),
             Some(Ordering::Less)
         ); // 2 > 1
     }

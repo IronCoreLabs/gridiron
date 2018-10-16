@@ -11,6 +11,8 @@ pub mod digits {
     pub mod unsigned;
     #[macro_use]
     pub mod ff;
+    pub(crate) mod constant_time_primitives;
+    pub(crate) mod constant_bool;
     pub mod util;
 }
 
@@ -87,7 +89,7 @@ impl From<[u8; 64]> for fp_256::Fp256 {
 
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
-        fp_480::Fp480::new(eight_limbs_from_sixtyfour_bytes(src)).normalize(0)
+        fp_480::Fp480::new(eight_limbs_from_sixtyfour_bytes(src)).normalize_little(0)
     }
 }
 
@@ -122,7 +124,7 @@ mod lib {
             1019112720967587113,
             4294731364,
         ]);
-        assert_eq!(pplusone.normalize(0), fp_480::Fp480::one());
+        assert_eq!(pplusone.normalize_little(0), fp_480::Fp480::one());
 
         let ptimestwo = fp_480::Fp480::new([
             15180051942586108206,
@@ -134,7 +136,22 @@ mod lib {
             2038225441935174226,
             8589462728,
         ]);
-        assert_eq!(ptimestwo.normalize(0), fp_480::Fp480::zero());
+        assert_eq!(ptimestwo.normalize_big(0), fp_480::Fp480::zero());
+
+        let ptimestwominusone = fp_480::Fp480::new([
+            15180051942586108205,
+            1494495434079926182,
+            14318076704049058632,
+            4073147127429862842,
+            7082784807894561092,
+            1658257849789132658,
+            2038225441935174226,
+            8589462728,
+        ]);
+        assert_eq!(
+            ptimestwominusone.normalize_little(0),
+            fp_480::Fp480::zero() - fp_480::Fp480::one()
+        );
 
         let ptimesthreeplusone = fp_480::Fp480::new([
             4323333840169610694,
@@ -146,7 +163,7 @@ mod lib {
             3057338162902761339,
             12884194092,
         ]);
-        assert_eq!(ptimesthreeplusone.normalize(0), fp_480::Fp480::one());
+        assert_eq!(ptimesthreeplusone.normalize_big(0), fp_480::Fp480::one());
 
         // so we should never have a number
         // greater than 2p, which means all F's
@@ -172,7 +189,7 @@ mod lib {
             17427631352741964502,
             235931,
         ]);
-        assert_eq!(max.normalize(0), expected);
+        assert_eq!(max.normalize_big(0), expected);
     }
 
     #[test]
@@ -735,7 +752,7 @@ mod lib {
         ]; // this has a most sig of 1 not shown; mod of this should be 'expected'
 
         let fpx = fp_256::Fp256::new(x);
-        assert_eq!(fpx.normalize(1), expected);
+        assert_eq!(fpx.normalize_little(1), expected);
 
         assert_eq!(
             fp_256::Fp256::new([
@@ -761,7 +778,7 @@ mod lib {
             0xFFFFFFFFFFFFFFFF,
         ]);
         assert_eq!(
-            max.normalize(0),
+            max.normalize_big(0),
             fp_256::Fp256::new([
                 16691276537507834264,
                 1271272038023711329,
@@ -770,7 +787,7 @@ mod lib {
             ])
         );
         assert_eq!(
-            max.normalize(1),
+            max.normalize_big(1),
             fp_256::Fp256::new([
                 13180341465104399562,
                 3813816114071133989,

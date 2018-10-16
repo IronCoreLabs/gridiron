@@ -39,4 +39,13 @@ To use it, you'll need to import headers for the math operations you want. So, f
     let one = fp_256::Fp256::one();
     let two = one + one;
 
-This is a work in progress and we hope to make it more performant and constant time.
+This is a work in progress and we hope to make it more performant and constant time. At the moment, the following finite field operations are not yet constant time:
+
+* Div - uses signed arrays, which don't have constant time add/subtract, also uses an algo with while loops
+* Inv - uses div
+* Pow - uses exp_by_squaring which is recursive and variable
+* nbit -- depends on underlying functions; probably not
+* To / From byte array
+* to_str_hex
+* to_str_decimal
+* create_naf

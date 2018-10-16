@@ -97,7 +97,7 @@ impl<T: DigitsArray + Clone> Rem<u64> for UnsignedDigitsArray<T> {
 impl<T: DigitsArray + Clone + PartialEq + Debug> PartialOrd for UnsignedDigitsArray<T> {
     #[inline]
     fn partial_cmp(&self, other: &UnsignedDigitsArray<T>) -> Option<Ordering> {
-        self.0.cmp(&other.0)
+        DigitsArray::cmp(&self.0, &other.0)
     }
 }
 

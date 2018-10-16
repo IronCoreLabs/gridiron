@@ -12,6 +12,7 @@ macro_rules! from_unsigned { ($classname: ident; $($T:ty),*) => { $(
 #[macro_export]
 macro_rules! from_signed { ($classname: ident; $($T:ty),*) => { $(
     impl From<$T> for $classname {
+        // TODO: not constant time
         fn from(other: $T) -> $classname {
             let mut ret = $classname::zero();
             if other < 0 {
@@ -94,7 +95,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     impl PartialOrd for $classname {
         #[inline]
         fn partial_cmp(&self, other: &$classname) -> Option<Ordering> {
-            cmp(&self.limbs, &other.limbs)
+            DigitsArray::cmp(&self.limbs, &other.limbs)
         }
     }
 
@@ -139,7 +140,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         #[inline]
         fn add_assign(&mut self, other: $classname) {
             let carry = self.limbs.add_assign(&other.limbs);
-            self.normalize_assign(carry as u64);
+            self.normalize_assign_little(carry as u64);
             debug_assert!(&self.limbs.less(&PRIME));
         }
     }
@@ -159,6 +160,9 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             let borrow = self.limbs.sub_assign(&other.limbs);
             if borrow {
                 self.limbs.add_assign(&PRIME);
+            } else {
+                // this is here to keep this constant time
+                self.limbs.add_assign(&[0u64; NUMLIMBS]);
             }
         }
     }
@@ -216,6 +220,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
     impl Div for $classname {
         type Output = $classname;
+        // TODO: not constant time
         fn div(self, rhs: $classname) -> $classname {
             assert!(!rhs.is_zero(), "You cannot divide by zero.");
             // debug_assert!(self < PRIME);
@@ -279,13 +284,13 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     x1 += p;
                 }
                 let extra_limb = x1.limbs[NUMLIMBS];
-                $classname { limbs: x1.limbs.contract_one() }.normalize(extra_limb)
+                $classname { limbs: x1.limbs.contract_one() }.normalize_little(extra_limb)
             } else {
                 while x2.is_neg() {
                     x2 += p;
                 }
                 let extra_limb = x2.limbs[NUMLIMBS];
-                ($classname { limbs: x2.limbs.contract_one() }).normalize(extra_limb)
+                ($classname { limbs: x2.limbs.contract_one() }).normalize_little(extra_limb)
             }
         }
     }
@@ -294,7 +299,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         type Output = $classname;
         #[inline]
         fn neg(self) -> $classname {
-            $classname { limbs: PRIME.sub_ignore_carry(&self.limbs[..])}.normalize(0) // normalize is really just for the self == 0 case
+            $classname { limbs: PRIME.sub_ignore_carry(&self.limbs[..])}.normalize_little(0) // normalize is really just for the self == 0 case
         }
     }
 
@@ -334,6 +339,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     from_signed! { $classname; i64, i32, i8 }
 
     /// Assume element zero is most sig
+    // TODO: not constant time
     impl From<[u8; NUMBYTES]> for $classname {
         fn from(src: [u8; NUMBYTES]) -> Self {
             /*
@@ -354,7 +360,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     }
                 }
             }
-            ret.normalize(0)
+            ret.normalize_big(0)
         }
     }
 
@@ -366,25 +372,46 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     impl $classname {
-        ///Take the extra limb and incorporate that into the existing value by modding by the prime.
+        /// This normalize should only be used when the input is at most
+        /// 2*p-1. Anything that might be bigger should use the normalize_big
+        /// options, which use barrett.
         #[inline]
-        pub fn normalize_assign(&mut self, extra_limb: u64) {
+        pub fn normalize_assign_little(&mut self, extra_limb: u64) {
             let mut r = self.expand_one();
             r[NUMLIMBS] = extra_limb;
 
-            while (&mut r[..]).greater_or_equal(&PRIME[..]) {
+            if r.greater_or_equal(&PRIME.expand_one()) {
                 r.sub_assign(&PRIME[..]);
+            } else {
+                r.sub_assign(&[0u64; NUMLIMBS]);
             }
             self.limbs = r.contract_one();
         }
 
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         #[inline]
-        pub fn normalize(mut self, extra_limb: u64) -> $classname {
-            self.normalize_assign(extra_limb);
+        pub fn normalize_little(mut self, extra_limb: u64) -> Self {
+            self.normalize_assign_little(extra_limb);
             self
         }
 
+        #[inline]
+        pub fn normalize_big(mut self, extra_limb: u64) -> Self {
+            self.normalize_assign_big(extra_limb);
+            self
+        }
+
+        #[inline]
+        pub fn normalize_assign_big(&mut self, extra_limb: u64) {
+            let mut ret = [0u64; NUMLIMBS*2];
+            for (dst, src) in ret.iter_mut().zip(self.iter()) {
+                *dst = *src;
+            }
+            ret[NUMLIMBS] = extra_limb;
+            self.limbs = $classname::reduce_barrett(&ret);
+        }
+
+        // TODO: not constant time
         ///Convert the value to a byte array which is `NUMBYTES` long.
         pub fn to_bytes_array(&self) -> [u8; NUMBYTES] {
             let mut ret = [0u8; NUMBYTES];
@@ -401,6 +428,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
 
         #[inline]
+        // TODO: not constant time
         pub fn exp_by_squaring(y: $classname, x: &$classname, n: &$classname) -> $classname {
             if n.is_zero() {
                 y
@@ -451,6 +479,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             ret
         }
 
+        // TODO: not constant time
         ///Write out the value in decimal form.
         pub fn to_str_decimal(mut self) -> String {
             // largest 10-base digit in a u64 is 10^19. For i64, 10^18. We've precalculated this for speed.
@@ -474,12 +503,15 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
         ///Write out the value in hex.
         #[allow(dead_code)]
+        // TODO: not sure if this is constant time
         pub fn to_str_hex(&self) -> String {
             let mut ret = String::with_capacity((PRIMEBITS / BITSPERBYTE) * 2); // two chars for every byte
             self.to_bytes_array().iter().for_each(|byte| ret.push_str(&format!("{:02x}", byte)));
             ret
         }
 
+        // TODO: build unit tests for this
+        // TODO: not constant time
         /// Create a Non-Adjacent form of the value.
         /// return - Vector which represents the NAF of value.
         pub fn create_naf(&self) -> Vec<i8> {
@@ -503,25 +535,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             naf
         }
 
-        // TODO: build unit tests for this
-        pub fn quadratic_residue(&self) -> bool {
-            self.legendre_symbol() == 1
-        }
-
-        // TODO: build unit tests for this
-        fn legendre_symbol(&self) -> i32 {
-            let exp = PRIME.sub_ignore_carry(&[1]).div2();
-            let r = self.pow($classname::new(exp));
-            if r > $classname::one() {
-                -1i32
-            } else if r.is_one() {
-                1i32
-            } else {
-                0i32
-            }
-        }
-
-
         // From Handbook of Applied Crypto algo 14.12
         #[inline]
         fn mul_limbs_classic(a: &[u64; NUMLIMBS], b: &[u64; NUMLIMBS]) -> [u64; NUMDOUBLELIMBS] {
@@ -540,49 +553,50 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             res
         }
 
-        // From Handbook of Applied Cryptography 14.42
-            // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
-            // OUTPUT: r = x mod m.
-            // 1. q1←⌊x/bk−1⌋, q2←q1 · μ, q3←⌊q2/bk+1⌋.
-            // 2. r1←x mod bk+1, r2←q3 · m mod bk+1, r←r1 − r2. 3. Ifr<0thenr←r+bk+1.
-            // 4. Whiler≥mdo:r←r−m.
-            // 5. Return(r).
-        // Also helpful: https://www.everything2.com/title/Barrett+Reduction
-        #[inline]
-        pub fn reduce_barrett(a: &[u64; NUMDOUBLELIMBS]) -> [u64; NUMLIMBS] {
-            // In this case, k = NUMLIMBS
-            // let mut q1 = [0u64; NUMLIMBS];
-            // q1.copy_from_slice(&a[NUMLIMBS - 1..NUMDOUBLELIMBS-1]);
-            let q1 = a.shift_right_digits(NUMLIMBS - 1);
+    // From Handbook of Applied Cryptography 14.42
+        // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
+        // OUTPUT: r = x mod m.
+        // 1. q1←⌊x/bk−1⌋, q2←q1 · μ, q3←⌊q2/bk+1⌋.
+        // 2. r1←x mod bk+1, r2←q3 · m mod bk+1, r←r1 − r2. 3. Ifr<0thenr←r+bk+1.
+        // 4. Whiler≥mdo:r←r−m.
+        // 5. Return(r).
+    // Also helpful: https://www.everything2.com/title/Barrett+Reduction
+    #[inline]
+    pub fn reduce_barrett(a: &[u64; NUMDOUBLELIMBS]) -> [u64; NUMLIMBS] {
+        // In this case, k = NUMLIMBS
+        // let mut q1 = [0u64; NUMLIMBS];
+        // q1.copy_from_slice(&a[NUMLIMBS - 1..NUMDOUBLELIMBS-1]);
+        let q1 = a.shift_right_digits(NUMLIMBS - 1);
 
-            // q2 = q1 * mu
-            // let q2 = BARRETTMU.mul_classic(&q1);
-            let q2 = q1.mul_classic(&BARRETTMU[..]);
+        // q2 = q1 * mu
+        // let q2 = BARRETTMU.mul_classic(&q1);
+        let q2 = q1.mul_classic(&BARRETTMU[..]);
 
-            let mut q3 = [0u64; NUMLIMBS];
-            q3.copy_from_slice(&q2[NUMLIMBS + 1..NUMDOUBLELIMBS + 1]);
+        let mut q3 = [0u64; NUMLIMBS];
+        q3.copy_from_slice(&q2[NUMLIMBS + 1..NUMDOUBLELIMBS + 1]);
 
-            let mut r1 = [0u64; NUMLIMBS + 2];
-            r1.copy_from_slice(&a[..NUMLIMBS+2]);
+        let mut r1 = [0u64; NUMLIMBS + 2];
+        r1.copy_from_slice(&a[..NUMLIMBS+2]);
 
-            let r2 = &q3.mul_classic(&PRIME)[..NUMLIMBS + 1];
+        let r2 = &q3.mul_classic(&PRIME)[..NUMLIMBS + 1];
 
-            // r = r1 - r2
-            let (r3, _) = r1.expand_one().sub(&r2);
-            let mut r = [0u64; NUMLIMBS]; // need to chop off extra limb
-            r.copy_from_slice(&r3[..NUMLIMBS]);
+        // r = r1 - r2
+        let (r3, _) = r1.expand_one().sub(&r2);
+        let mut r = [0u64; NUMLIMBS]; // need to chop off extra limb
+        r.copy_from_slice(&r3[..NUMLIMBS]);
 
-            // at most two subtractions with p
-            for _i in 0..2 {
-                if cmp(&r, &PRIME) != Some(Ordering::Less) {
-                    r.sub_assign(&PRIME);
-                }
+        // at most two subtractions with p
+        for _i in 0..2 {
+            if DigitsArray::cmp(&r, &PRIME) != Some(Ordering::Less) {
+                r.sub_assign(&PRIME);
+            } else {
+                // this branch is for constant time
+                r.sub_assign(&[0u64; NUMLIMBS]);
             }
-            debug_assert!(cmp(&r, &PRIME) == Some(Ordering::Less));
-            r
         }
-    }
-
+        debug_assert!(DigitsArray::cmp(&r, &PRIME) == Some(Ordering::Less));
+        r
+    }}
 
 
     #[cfg(test)]
@@ -609,10 +623,10 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     for limb in limbs.iter_mut() {
                         *limb = rng.next_u64();
                     }
-                    limbs[NUMLIMBS - 1] &= (1u64 << 32) - 1;
+                    limbs[NUMLIMBS - 1] &= (1u64 << (PRIMEBITS % 64)) - 1;
                     $classname {
                         limbs: limbs
-                    }.normalize(0)
+                    }.normalize_little(0)
                 }
             }
         }
@@ -742,6 +756,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     prop_assert_eq!($classname::from(a), $classname::new_from_u64(a as u64));
                 }
             }
+
         }
     }
 }};}
