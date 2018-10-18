@@ -16,6 +16,11 @@ num-traits = "0.2"
 [dev-dependencies]
 proptest = "0.8.7"
 rand = "~0.5"
+criterion = "0.2"
 
 [features]
 unstable = []
+
+[[bench]]
+name = "benchmark"
+harness = false
