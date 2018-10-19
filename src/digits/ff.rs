@@ -400,7 +400,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             for i in 0 .. NUMLIMBS {
                 println!("i={}", i);
                 // TODO: need some Wrapping semantics here:
-                let f = (d[0] + a[i] * b[0]) * MONTM0INV;
+                let f = (a[i].wrapping_mul(b[0]).wrapping_add(d[0])).wrapping_mul(MONTM0INV);
                 let mut z = [0u64; 2];
                 let mut c = [0u64; 2];
                 for j in 0 .. NUMLIMBS {
