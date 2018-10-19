@@ -34,7 +34,7 @@ macro_rules! from_signed { ($classname: ident; $($T:ty),*) => { $(
 /// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 64)`).
 /// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(64*numlimbs*2)/prime)`.
 #[macro_export]
-macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr) => { pub mod $modname {
+macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => { pub mod $modname {
     use $crate::digits::util::*;
     use $crate::digits::signed::*;
     use std::cmp::Ordering;
@@ -54,6 +54,9 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     pub const NUMDOUBLELIMBS: usize = $limbs * 2;
     pub const BARRETTMU: [u64; NUMLIMBS + 1] = $barrettmu;
     pub const BITSPERBYTE: usize = 8;
+    pub const MONTRINV: [u64; NUMLIMBS] = $montgomery_r_inv;
+    pub const MONTRSQUARED: [u64; NUMLIMBS] = $montgomery_r_squared;
+    pub const MONTM0INV: u64 = $montgomery_m0_inv;
 
     #[derive(PartialEq, Eq, Ord, Clone, Copy)]
     pub struct $classname {
@@ -375,28 +378,90 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
+    impl Mont {
+        pub fn to_norm(self) -> $classname {
+            let mut one = [0u64; NUMLIMBS];
+            one[0] = 1;
+            $classname { limbs: (self * Mont{limbs: one}).limbs }
+        }
+    }
+
+    impl Mul<Mont> for Mont {
+        type Output = Mont;
+
+        #[inline]
+        fn mul(self, rhs: Mont) -> Mont {
+            unimplemented!();
+            // Constant time montgomery mult from https://www.bearssl.org/bigint.html
+            // let a = self.limbs;
+            // let b = rhs.limbs;
+            // let mut d = [0u64; NUMLIMBS];
+            // let mut dh = 0u64;
+            // for i in 0 .. NUMLIMBS {
+            //     // TODO: need some Wrapping semantics here:
+            //     let f = (d[0] + a[i] * b[0]) * MONTM0INV;
+            //     let mut z = [0u64; 2];
+            //     let mut c = 0u64;
+            //     for j in 0 .. NUMLIMBS {
+            //         // TODO: need to deal with different int sizes here -- probably normalize everything to arrays of size 2
+            //         // probably easier to use SignedDigits type
+            //         z = d[j] + a[i]*b[j] + f * PRIME[j] + c;
+            //         if j > 0 {
+            //             d[j-1] = z[0];
+            //         }
+            //         c = z[1];
+            //     }
+            //     z = dh + c;
+            //     d[NUMLIMBS - 1] = z[0];
+            //     dh = z[1];
+            // }
+            // if dh != 0 || d.greater_or_equal(&PRIME) {
+            //     d.sub_assign(&PRIME);
+            // }
+            // Mont { limbs: d }
+        }
+    }
+
+    impl Mul<$classname> for Mont {
+        type Output = Mont;
+
+        #[inline]
+        fn mul(self, rhs: $classname) -> Mont {
+            unimplemented!();
+        }
+    }
+
+    impl Mul<Mont> for $classname {
+        type Output = Mont;
+
+        #[inline]
+        fn mul(self, rhs: Mont) -> Mont {
+            unimplemented!();
+        }
+    }
+
     impl $classname {
         pub fn to_mont(self) -> Mont {
-            //To convert to mont form we want to multiply by W^n. W is the number of bits (2^64) and n is the number of
-            //limbs.
-            let mut limbs = self.limbs;
-            const W: u64 = 18446744073709551615u64;//2u64.pow(LIMBSIZEBITS as u32);
-            for _i in 0..NUMLIMBS {
-                //Add W 4 times. Each time we should reduce back around PRIME. 
-                //@Patrick - It was unclear to me if there is a preferred way to do this, but this seemed reasonable.
-                let mut limbs_expanded = limbs.mul_add_by_digit(W, 0u64);
-                while (&mut limbs_expanded[..]).greater_or_equal(&PRIME[..]) {
-                    limbs_expanded.sub_assign(&PRIME);
-                }
-                limbs = limbs_expanded.contract_one();
-            }
+            // From https://www.bearssl.org/bigint.html
+            // k = PRIMEBITS, N = NUMLIMBS
+            // For i=1 to kN, do:
+            //     Set: a←2a mod m
+            // In bearssl code for 32bit, he instead does this limb-wise, essentially
+            // taking `a`, shifting it left a limb, then reducing by m and doing it again
+            // we don't currently have a function to reduce NUMLIMBS+1 limbs, but we do have
+            // barrett which will allow us to pretty efficiently calculate (`a` << k) % p
+            let self_times_r = <[u64; NUMLIMBS*2]>::populate_padded_mostsig_from_slice(&self.limbs[..]);
+            let limbs = $classname::reduce_barrett(&self_times_r);
             Mont{limbs}
+
+            // NOTE: it may be faster to do:
+            //   Mont(self.limbs) * Mont(MONTRSQUARED)
         }
 
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         /// This normalize should only be used when the input is at most
         /// 2*p-1. Anything that might be bigger should use the normalize_big
-        /// options, which use barrett.        
+        /// options, which use barrett.
         #[inline]
         pub fn normalize_assign_little(&mut self, extra_limb: u64) {
             let mut r = self.expand_one();
