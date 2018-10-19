@@ -60,6 +60,10 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         limbs: [u64; NUMLIMBS],
     }
 
+    pub struct Mont{
+        limbs: [u64; NUMLIMBS],
+    }
+
     impl fmt::Debug for $classname {
         fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
             write!(f, "{}(", stringify!($classname))?;
@@ -372,9 +376,27 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     impl $classname {
+        pub fn to_mont(self) -> Mont {
+            //To convert to mont form we want to multiply by W^n. W is the number of bits (2^64) and n is the number of
+            //limbs.
+            let mut limbs = self.limbs;
+            const W: u64 = 18446744073709551615u64;//2u64.pow(LIMBSIZEBITS as u32);
+            for _i in 0..NUMLIMBS {
+                //Add W 4 times. Each time we should reduce back around PRIME. 
+                //@Patrick - It was unclear to me if there is a preferred way to do this, but this seemed reasonable.
+                let mut limbs_expanded = limbs.mul_add_by_digit(W, 0u64);
+                while (&mut limbs_expanded[..]).greater_or_equal(&PRIME[..]) {
+                    limbs_expanded.sub_assign(&PRIME);
+                }
+                limbs = limbs_expanded.contract_one();
+            }
+            Mont{limbs}
+        }
+
+        ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         /// This normalize should only be used when the input is at most
         /// 2*p-1. Anything that might be bigger should use the normalize_big
-        /// options, which use barrett.
+        /// options, which use barrett.        
         #[inline]
         pub fn normalize_assign_little(&mut self, extra_limb: u64) {
             let mut r = self.expand_one();
