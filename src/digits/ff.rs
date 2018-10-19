@@ -37,6 +37,7 @@ macro_rules! from_signed { ($classname: ident; $($T:ty),*) => { $(
 macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => { pub mod $modname {
     use $crate::digits::util::*;
     use $crate::digits::signed::*;
+    use $crate::digits::unsigned::*;
     use std::cmp::Ordering;
     use std::fmt;
     use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
@@ -64,7 +65,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     pub struct Mont{
-        limbs: [u64; NUMLIMBS],
+        pub(crate) limbs: [u64; NUMLIMBS],
     }
 
     impl fmt::Debug for $classname {
@@ -391,27 +392,70 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
         #[inline]
         fn mul(self, rhs: Mont) -> Mont {
-            unimplemented!();
-            // Constant time montgomery mult from https://www.bearssl.org/bigint.html
+            let a = self.limbs;
+            let b = rhs.limbs;
+            let mut d = [0u64; NUMLIMBS];
+            let mut dh = [0u64; 2];
+            println!("In mul");
+            for i in 0 .. NUMLIMBS {
+                println!("i={}", i);
+                // TODO: need some Wrapping semantics here:
+                let f = (d[0] + a[i] * b[0]) * MONTM0INV;
+                let mut z = [0u64; 2];
+                let mut c = [0u64; 2];
+                for j in 0 .. NUMLIMBS {
+                    println!("j={}", j);
+                    // TODO: need to deal with different int sizes here -- probably normalize everything to arrays of size 2
+                    // probably easier to use SignedDigits type
+                    let (arr, carry) = [a[i]].mul_add_by_digit(b[j], d[j])
+                    .add(&[f].mul_by_digit(PRIME[j]));
+                    z = arr.add_ignore_carry(&c);
+                    if j > 0 {
+                        d[j-1] = z[0];
+                    }
+                    c = [carry as u64, z[1]];
+                }
+                z = dh.add_ignore_carry(&c);
+                d[NUMLIMBS - 1] = z[0];
+                dh = [0u64, z[1]];
+            }
+            if dh != [0u64; 2] || d.greater_or_equal(&PRIME) {
+                d.sub_assign(&PRIME);
+            }
+            Mont { limbs: d }
+
+            // // Constant time montgomery mult from https://www.bearssl.org/bigint.html
             // let a = self.limbs;
             // let b = rhs.limbs;
             // let mut d = [0u64; NUMLIMBS];
             // let mut dh = 0u64;
+            // let mut r1 = 0u64;
+            // let mut r2 = 0u64;
+            // let mut zh = [0u64,2];
             // for i in 0 .. NUMLIMBS {
             //     // TODO: need some Wrapping semantics here:
-            //     let f = (d[0] + a[i] * b[0]) * MONTM0INV;
-            //     let mut z = [0u64; 2];
-            //     let mut c = 0u64;
+            //     let f = (d[0].wrapping_add(a[i].wrapping_mul(b[0]))).wrapping_mul(MONTM0INV);
             //     for j in 0 .. NUMLIMBS {
-            //         // TODO: need to deal with different int sizes here -- probably normalize everything to arrays of size 2
-            //         // probably easier to use SignedDigits type
-            //         z = d[j] + a[i]*b[j] + f * PRIME[j] + c;
-            //         if j > 0 {
-            //             d[j-1] = z[0];
+            //         let mut z = [0u64; 2];
+            //         let mut t = 0u64;
+            //         let (high, low) = mul_add_3_limbs(a[i], b[j], d[j]);
+            //         z = UnsignedDigitsArray::new([high, low]) + double_arr(r1);
+            //         r1 = z[1];
+            //         t = z[0];
+            //         let (high, low) = mul_add_3_limbs(f, PRIME[j], t);
+            //         z = UnsignedDigitsArray::new([high, low]) + double_arr(r2);
+            //         r2 = z[1];
+            //         if j != 0 {
+            //             d[j -1] = z[0];
             //         }
-            //         c = z[1];
+            //         // let foo = d[j] + a[i]*b[j] + f * PRIME[j] + c;
+            //         // z = foo;
+            //         // if j > 0 {
+            //         //     d[j-1] = z[0];
+            //         // }
+            //         r2 = z[1];
             //     }
-            //     z = dh + c;
+            //     zh = dh + r2 + r1;
             //     d[NUMLIMBS - 1] = z[0];
             //     dh = z[1];
             // }
@@ -450,12 +494,13 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             // taking `a`, shifting it left a limb, then reducing by m and doing it again
             // we don't currently have a function to reduce NUMLIMBS+1 limbs, but we do have
             // barrett which will allow us to pretty efficiently calculate (`a` << k) % p
-            let self_times_r = <[u64; NUMLIMBS*2]>::populate_padded_mostsig_from_slice(&self.limbs[..]);
-            let limbs = $classname::reduce_barrett(&self_times_r);
-            Mont{limbs}
+            // let self_times_r = <[u64; NUMLIMBS*2]>::populate_padded_mostsig_from_slice(&self.limbs[..]);
+            // let limbs = $classname::reduce_barrett(&self_times_r);
+            // Mont{limbs}
 
             // NOTE: it may be faster to do:
-            //   Mont(self.limbs) * Mont(MONTRSQUARED)
+            println!("In to_mont");
+              Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
         }
 
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.

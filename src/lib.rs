@@ -250,6 +250,26 @@ mod lib {
     }
 
     #[test]
+    fn mont_mult() {
+        let a = fp_480::Fp480::new([1u64; fp_480::NUMLIMBS]);
+        // a * a % fp_480::PRIME =
+        // 0x1374ae453d22515b4d209657a3dbfee9f3bb8cf03f8e24055b70d6ed36bc5e0c7bd2093503dd799794b20d746882519503f026ec8a608fc144f2ec14
+        let expected = fp_480::Fp480::new([
+            0x8a608fc144f2ec14, // least sig
+            0x6882519503f026ec,
+            0x03dd799794b20d74,
+            0x36bc5e0c7bd20935,
+            0x3f8e24055b70d6ed,
+            0xa3dbfee9f3bb8cf0,
+            0x3d22515b4d209657,
+            0x1374ae45, // most sig
+        ]);
+        let foo = a.to_mont();
+        assert_eq!(foo.limbs,foo.limbs);
+        // assert_eq!(a.to_mont(), expected);
+    }
+
+    #[test]
     fn hex_dec_print() {
         let p = fp_480::Fp480::new(fp_480::PRIME);
         assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
