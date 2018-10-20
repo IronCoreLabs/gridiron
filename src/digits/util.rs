@@ -712,7 +712,7 @@ macro_rules! digits_u64_impls { ($($M:ident $N:expr),+) => {
 }}
 
 digits_u64_impls! {
-    a1 1, a2 2, a3 3, a4 4, a5 5, a6 6, a7 7, a8 8, a9 9, a10 10, a11 11, a12 12, a13 13, a14 14, a15 15, a16 16, a17 17, a18 18, a19 19
+    a2 2, a3 3, a4 4, a5 5, a6 6, a7 7, a8 8, a9 9, a10 10, a11 11, a12 12, a13 13, a14 14, a15 15, a16 16, a17 17, a18 18, a19 19
 }
 
 // TODO: not constant time (variable size limbs makes this tricky)
@@ -753,6 +753,11 @@ pub fn mul_add_3_limbs(x: u64, y: u64, z: u64) -> (u64, u64) {
     let mut carry = 0u64;
     lo = add_accum_1by1(lo, z, &mut carry);
     (hi + carry, lo)
+}
+
+pub fn mul_add_3_limbs_array(x: u64, y: u64, z: u64) -> [u64; 2] {
+    let temp = mul_add_3_limbs(x, y, z);
+    [temp.1, temp.0]
 }
 
 /* Adapted from https://github.com/Aatch/ramp/blob/master/src/ll/limb.rs

@@ -61,7 +61,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
     #[derive(PartialEq, Eq, Ord, Clone, Copy)]
     pub struct $classname {
-        limbs: [u64; NUMLIMBS],
+        pub(crate) limbs: [u64; NUMLIMBS],
     }
 
     pub struct Mont{
@@ -392,6 +392,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
         #[inline]
         fn mul(self, rhs: Mont) -> Mont {
+            // Constant time montgomery mult from https://www.bearssl.org/bigint.html
             let a = self.limbs;
             let b = rhs.limbs;
             let mut d = [0u64; NUMLIMBS];
@@ -400,31 +401,51 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             for i in 0 .. NUMLIMBS {
                 println!("i={}", i);
                 // TODO: need some Wrapping semantics here:
-                let f = (a[i].wrapping_mul(b[0]).wrapping_add(d[0])).wrapping_mul(MONTM0INV);
-                let mut z = [0u64; 2];
+                // f←(d[0]+a[i]b[0])g mod W
+                // g is MONTM0INV, W is word size
+                let f = {
+                    let x = mul_add_3_limbs_array(a[i], b[0], d[0]).mul_by_digit(MONTM0INV);
+                    x[0]
+                };
+                println!("  f={:?}", f);
+                let mut z = [0u64; 3];
                 let mut c = [0u64; 2];
                 for j in 0 .. NUMLIMBS {
                     println!("j={}", j);
-                    // TODO: need to deal with different int sizes here -- probably normalize everything to arrays of size 2
-                    // probably easier to use SignedDigits type
-                    let (arr, carry) = [a[i]].mul_add_by_digit(b[j], d[j])
-                    .add(&[f].mul_by_digit(PRIME[j]));
-                    z = arr.add_ignore_carry(&c);
+                    // z ← d[j]+a[i]b[j]+fm[j]+c
+                    z = {
+                        let z1 = mul_add_3_limbs_array(a[i], b[j], d[j]);
+                        let z2 = mul_1_limb_by_1_limb_array(f, PRIME[j]);
+                        let (z3, carry1) = z2.add(&c);
+                        let (sum, carry2) = z1.add(&z3);
+                        let carry = carry1 as u64 + carry2 as u64;
+                        // c ← ⌊z/W⌋
+                        c = [sum[1], carry];
+                        [sum[0], sum[1], carry]
+                    };
+                    println!("  z={:?}", z);
+
+                    // If j>0, set: d[j−1] ← z mod W
                     if j > 0 {
                         d[j-1] = z[0];
                     }
-                    c = [carry as u64, z[1]];
                 }
-                z = dh.add_ignore_carry(&c);
+                // z ← dh+c
+                z = {
+                    let (sum, carry) = dh.add(&c);
+                    [sum[0], sum[1], carry as u64]
+                };
+                // d[N−1] ← z mod W
                 d[NUMLIMBS - 1] = z[0];
-                dh = [0u64, z[1]];
+                // dh ← ⌊z/W⌋
+                dh = [z[1], z[2]];
             }
+            // if dh≠0 or d≥m, set: d←d−m
             if dh != [0u64; 2] || d.greater_or_equal(&PRIME) {
                 d.sub_assign(&PRIME);
             }
             Mont { limbs: d }
 
-            // // Constant time montgomery mult from https://www.bearssl.org/bigint.html
             // let a = self.limbs;
             // let b = rhs.limbs;
             // let mut d = [0u64; NUMLIMBS];

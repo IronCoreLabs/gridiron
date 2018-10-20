@@ -250,17 +250,50 @@ mod lib {
     }
 
     #[test]
-    fn mont_mult() {
-        println!("In test.");
-        let a = fp_256::Fp256::new([1u64; fp_256::NUMLIMBS]);
+    fn mont_mult1() {
+        let a = fp_480::Fp480::new([1u64; fp_480::NUMLIMBS]);
         // a * a % fp_480::PRIME =
         // 0x1374ae453d22515b4d209657a3dbfee9f3bb8cf03f8e24055b70d6ed36bc5e0c7bd2093503dd799794b20d746882519503f026ec8a608fc144f2ec14
-        let expected = fp_256::Mont{limbs:[4845373780812082244,
-             5983786107625101619,
-             10154744129314385811,
-             8474433327013088965]};
+        let expected = fp_480::Fp480::new([
+            0x8a608fc144f2ec14, // least sig
+            0x6882519503f026ec,
+            0x03dd799794b20d74,
+            0x36bc5e0c7bd20935,
+            0x3f8e24055b70d6ed,
+            0xa3dbfee9f3bb8cf0,
+            0x3d22515b4d209657,
+            0x1374ae45, // most sig
+        ]);
+        // let foo = a.to_mont();
+        // assert_eq!(foo.limbs,foo.limbs);
+        assert_eq!((a.to_mont() * a.to_mont()).to_norm(), expected);
+    }
 
-        assert_eq!(a.to_mont().limbs,expected.limbs);
+    #[test]
+    fn mont_mult2() {
+        let a = fp_256::Fp256::new([1u64; fp_256::NUMLIMBS]);
+        // a * R % fp_256::PRIME = 53194880143412583465331226137168779049052990239199584692423732563380439592004
+        let expected = fp_256::Fp256::new([
+            4845373780812082244,
+            5983786107625101619,
+            10154744129314385811,
+            8474433327013088965,
+        ]);
+        // let foo = a.to_mont();
+        // assert_eq!(foo.limbs,foo.limbs);
+        assert_eq!(a.to_mont().limbs, expected.limbs);
+    }
+    #[test]
+    fn mont_mult3() {
+        // a * a % fp_480::PRIME = 18140795192019734849437593733938181448350210532550492080276007701613892802183
+        let a = fp_256::Fp256::new([1u64; fp_256::NUMLIMBS]);
+        let expected = fp_256::Fp256::new([
+            14975423715277739655,
+            13454314221557599687,
+            2400683194666791604,
+            2889995408191712097,
+        ]);
+        assert_eq!((a.to_mont() * a.to_mont()).to_norm(), expected);
     }
 
     #[test]
