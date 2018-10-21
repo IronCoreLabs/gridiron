@@ -64,6 +64,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         pub(crate) limbs: [u64; NUMLIMBS],
     }
 
+    #[derive(PartialEq, Eq, Ord, Clone, Copy)]
     pub struct Mont{
         pub(crate) limbs: [u64; NUMLIMBS],
     }
@@ -395,12 +396,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             // Constant time montgomery mult from https://www.bearssl.org/bigint.html
             let a = self.limbs;
             let b = rhs.limbs;
-            let mut d = [0u64; NUMLIMBS];
-            let mut dh = [0u64; 2];
+            let mut d = [0u64; NUMLIMBS]; // result
+            let mut dh = [0u64; 2]; // can be up to 2W
             println!("In mul");
             for i in 0 .. NUMLIMBS {
                 println!("i={}", i);
-                // TODO: need some Wrapping semantics here:
                 // f←(d[0]+a[i]b[0])g mod W
                 // g is MONTM0INV, W is word size
                 let f = {
@@ -408,8 +408,8 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     x[0]
                 };
                 println!("  f={:?}", f);
-                let mut z = [0u64; 3];
-                let mut c = [0u64; 2];
+                let mut z = [0u64; 3]; // can be up to 2W^2
+                let mut c = [0u64; 2]; // can be up to 2W
                 for j in 0 .. NUMLIMBS {
                     println!("j={}", j);
                     // z ← d[j]+a[i]b[j]+fm[j]+c
@@ -425,6 +425,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     };
                     println!("  z={:?}", z);
 
+                    // TODO: MAKE THIS CONSTANT TIME
                     // If j>0, set: d[j−1] ← z mod W
                     if j > 0 {
                         d[j-1] = z[0];
@@ -440,50 +441,13 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                 // dh ← ⌊z/W⌋
                 dh = [z[1], z[2]];
             }
+
+            // TODO: MAKE THIS CONSTANT TIME
             // if dh≠0 or d≥m, set: d←d−m
             if dh != [0u64; 2] || d.greater_or_equal(&PRIME) {
                 d.sub_assign(&PRIME);
             }
             Mont { limbs: d }
-
-            // let a = self.limbs;
-            // let b = rhs.limbs;
-            // let mut d = [0u64; NUMLIMBS];
-            // let mut dh = 0u64;
-            // let mut r1 = 0u64;
-            // let mut r2 = 0u64;
-            // let mut zh = [0u64,2];
-            // for i in 0 .. NUMLIMBS {
-            //     // TODO: need some Wrapping semantics here:
-            //     let f = (d[0].wrapping_add(a[i].wrapping_mul(b[0]))).wrapping_mul(MONTM0INV);
-            //     for j in 0 .. NUMLIMBS {
-            //         let mut z = [0u64; 2];
-            //         let mut t = 0u64;
-            //         let (high, low) = mul_add_3_limbs(a[i], b[j], d[j]);
-            //         z = UnsignedDigitsArray::new([high, low]) + double_arr(r1);
-            //         r1 = z[1];
-            //         t = z[0];
-            //         let (high, low) = mul_add_3_limbs(f, PRIME[j], t);
-            //         z = UnsignedDigitsArray::new([high, low]) + double_arr(r2);
-            //         r2 = z[1];
-            //         if j != 0 {
-            //             d[j -1] = z[0];
-            //         }
-            //         // let foo = d[j] + a[i]*b[j] + f * PRIME[j] + c;
-            //         // z = foo;
-            //         // if j > 0 {
-            //         //     d[j-1] = z[0];
-            //         // }
-            //         r2 = z[1];
-            //     }
-            //     zh = dh + r2 + r1;
-            //     d[NUMLIMBS - 1] = z[0];
-            //     dh = z[1];
-            // }
-            // if dh != 0 || d.greater_or_equal(&PRIME) {
-            //     d.sub_assign(&PRIME);
-            // }
-            // Mont { limbs: d }
         }
     }
 
@@ -505,21 +469,32 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
+    impl Add<Mont> for Mont {
+        type Output = Mont;
+        #[inline]
+        fn add(self, rhs: Mont) -> Mont {
+            unimplemented!();
+        }
+    }
+
+    impl Sub<Mont> for Mont {
+        type Output = Mont;
+        #[inline]
+        fn sub(self, rhs: Mont) -> Mont {
+            unimplemented!();
+        }
+    }
+
+    impl PartialOrd for Mont {
+        #[inline]
+        fn partial_cmp(&self, other: &Mont) -> Option<Ordering> {
+            DigitsArray::cmp(&self.limbs, &other.limbs)
+        }
+    }
+
     impl $classname {
         pub fn to_mont(self) -> Mont {
             // From https://www.bearssl.org/bigint.html
-            // k = PRIMEBITS, N = NUMLIMBS
-            // For i=1 to kN, do:
-            //     Set: a←2a mod m
-            // In bearssl code for 32bit, he instead does this limb-wise, essentially
-            // taking `a`, shifting it left a limb, then reducing by m and doing it again
-            // we don't currently have a function to reduce NUMLIMBS+1 limbs, but we do have
-            // barrett which will allow us to pretty efficiently calculate (`a` << k) % p
-            // let self_times_r = <[u64; NUMLIMBS*2]>::populate_padded_mostsig_from_slice(&self.limbs[..]);
-            // let limbs = $classname::reduce_barrett(&self_times_r);
-            // Mont{limbs}
-
-            // NOTE: it may be faster to do:
             println!("In to_mont");
               Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
         }
@@ -908,6 +883,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                 } else {
                     prop_assert_eq!($classname::from(a), $classname::new_from_u64(a as u64));
                 }
+            }
+
+            #[test]
+            fn mont_equals_normal(a in arb_fp(), b in arb_fp()) {
+                prop_assert_eq!(a * b, (a.to_mont() * b.to_mont()).to_norm());
             }
 
         }
