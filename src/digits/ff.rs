@@ -386,6 +386,10 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             one[0] = 1;
             $classname { limbs: (self * Mont{limbs: one}).limbs }
         }
+
+        pub (crate) fn new(limbs:[u64; NUMLIMBS]) -> Mont{
+            Mont{limbs}
+        }
     }
 
     impl Mul<Mont> for Mont {
@@ -400,7 +404,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             let mut dh = [0u64; 2]; // can be up to 2W
             println!("In mul");
             for i in 0 .. NUMLIMBS {
-                println!("i={}", i);
                 // f←(d[0]+a[i]b[0])g mod W
                 // g is MONTM0INV, W is word size
                 let f = {
@@ -411,7 +414,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                 let mut z = [0u64; 3]; // can be up to 2W^2
                 let mut c = [0u64; 2]; // can be up to 2W
                 for j in 0 .. NUMLIMBS {
-                    println!("j={}", j);
                     // z ← d[j]+a[i]b[j]+fm[j]+c
                     z = {
                         let z1 = mul_add_3_limbs_array(a[i], b[j], d[j]);
@@ -423,7 +425,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                         c = [sum[1], carry];
                         [sum[0], sum[1], carry]
                     };
-                    println!("  z={:?}", z);
 
                     // TODO: MAKE THIS CONSTANT TIME
                     // If j>0, set: d[j−1] ← z mod W
@@ -452,20 +453,20 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     impl Mul<$classname> for Mont {
-        type Output = Mont;
+        type Output = $classname;
 
         #[inline]
-        fn mul(self, rhs: $classname) -> Mont {
-            unimplemented!();
+        fn mul(self, rhs: $classname) -> $classname {
+            $classname::new((self * Mont::new(rhs.limbs)).limbs)
         }
     }
 
     impl Mul<Mont> for $classname {
-        type Output = Mont;
+        type Output = $classname;
 
         #[inline]
-        fn mul(self, rhs: Mont) -> Mont {
-            unimplemented!();
+        fn mul(self, rhs: Mont) -> $classname {
+            $classname::new((Mont::new(self.limbs) * rhs).limbs)
         }
     }
 
@@ -494,9 +495,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
 
     impl $classname {
         pub fn to_mont(self) -> Mont {
-            // From https://www.bearssl.org/bigint.html
-            println!("In to_mont");
-              Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
+            Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
         }
 
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
@@ -886,8 +885,23 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             }
 
             #[test]
+            fn to_mont_roundtrip_to_norm(a in arb_fp()) {
+                prop_assert_eq!(a, a.to_mont().to_norm());
+            }
+
+            #[test]
             fn mont_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, (a.to_mont() * b.to_mont()).to_norm());
+            }
+
+            #[test]
+            fn mont_times_normal_equals_normal(a in arb_fp(), b in arb_fp()) {
+                prop_assert_eq!(a * b, a.to_mont()* b);
+            }
+
+            #[test]
+            fn normas_times_mont_equals_normal(a in arb_fp(), b in arb_fp()) {
+                prop_assert_eq!(a * b, a* b.to_mont());
             }
 
         }
