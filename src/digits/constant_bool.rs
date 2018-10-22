@@ -65,7 +65,7 @@ where
     Wrapping<T>: Neg<Output = Wrapping<T>>,
     T: NumOps + Copy + Neg<Output = T> + BitAnd<Output = T> + BitXor<Output = T> + From<u64> + One,
 {
-    fn mux(self, x: T, y: T) -> T {
+    pub fn mux(self, x: T, y: T) -> T {
         y ^ (Wrapping(self.0).neg().0 & (x ^ y))
     }
     fn is_zero(i: T) -> Self {

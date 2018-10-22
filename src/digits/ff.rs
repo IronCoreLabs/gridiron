@@ -38,6 +38,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     use $crate::digits::util::*;
     use $crate::digits::signed::*;
     use $crate::digits::unsigned::*;
+    use $crate::digits::constant_time_primitives::*;
     use std::cmp::Ordering;
     use std::fmt;
     use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
@@ -387,6 +388,12 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             $classname { limbs: (self * Mont{limbs: one}).limbs }
         }
 
+        #[inline]
+        pub fn normalize_assign_little(&mut self, extra_limb: u64) {
+            let new_limbs = $classname::normalize_little_limbs(self.limbs, extra_limb);
+            self.limbs = new_limbs;
+        }
+
         pub (crate) fn new(limbs:[u64; NUMLIMBS]) -> Mont{
             Mont{limbs}
         }
@@ -402,7 +409,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             let b = rhs.limbs;
             let mut d = [0u64; NUMLIMBS]; // result
             let mut dh = [0u64; 2]; // can be up to 2W
-            println!("In mul");
             for i in 0 .. NUMLIMBS {
                 // f←(d[0]+a[i]b[0])g mod W
                 // g is MONTM0INV, W is word size
@@ -410,8 +416,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                     let x = mul_add_3_limbs_array(a[i], b[0], d[0]).mul_by_digit(MONTM0INV);
                     x[0]
                 };
-                println!("  f={:?}", f);
-                let mut z = [0u64; 3]; // can be up to 2W^2
+                let mut z: [u64; 3]; // can be up to 2W^2
                 let mut c = [0u64; 2]; // can be up to 2W
                 for j in 0 .. NUMLIMBS {
                     // z ← d[j]+a[i]b[j]+fm[j]+c
@@ -426,7 +431,6 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                         [sum[0], sum[1], carry]
                     };
 
-                    // TODO: MAKE THIS CONSTANT TIME
                     // If j>0, set: d[j−1] ← z mod W
                     if j > 0 {
                         d[j-1] = z[0];
@@ -443,10 +447,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
                 dh = [z[1], z[2]];
             }
 
-            // TODO: MAKE THIS CONSTANT TIME
             // if dh≠0 or d≥m, set: d←d−m
             if dh != [0u64; 2] || d.greater_or_equal(&PRIME) {
                 d.sub_assign(&PRIME);
+            } else{
+                d.sub_assign(&[0u64; NUMLIMBS]);
             }
             Mont { limbs: d }
         }
@@ -473,16 +478,49 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     impl Add<Mont> for Mont {
         type Output = Mont;
         #[inline]
-        fn add(self, rhs: Mont) -> Mont {
-            unimplemented!();
+        fn add(mut self, rhs: Mont) -> Mont {
+            self += rhs;
+            self
+        }
+    }
+
+    impl AddAssign for Mont {
+        #[inline]
+        fn add_assign(&mut self, other: Mont) {
+            let carry = self.limbs.add_assign(&other.limbs);
+//TODO this is duplicate.
+            let mut r = self.limbs.expand_one();
+            r[NUMLIMBS] = carry as u64;
+
+            if r.greater_or_equal(&PRIME.expand_one()) {
+                r.sub_assign(&PRIME[..]);
+            } else {
+                r.sub_assign(&[0u64; NUMLIMBS]);
+            }
+            self.limbs = r.contract_one();
+            debug_assert!(&self.limbs.less(&PRIME));
         }
     }
 
     impl Sub<Mont> for Mont {
         type Output = Mont;
         #[inline]
-        fn sub(self, rhs: Mont) -> Mont {
-            unimplemented!();
+        fn sub(mut self, rhs: Mont) -> Mont {
+            self -= rhs;
+            self
+        }
+    }
+
+    impl SubAssign for Mont {
+        #[inline]
+        fn sub_assign(&mut self, other: Mont) {
+            let borrow = self.limbs.sub_assign(&other.limbs);
+            if borrow {
+                self.limbs.add_assign(&PRIME);
+            } else {
+                // this is here to keep this constant time
+                self.limbs.add_assign(&[0u64; NUMLIMBS]);
+            }
         }
     }
 
@@ -498,13 +536,19 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
         }
 
+        #[inline]
+        pub fn normalize_assign_little(&mut self, extra_limb: u64) {
+            let new_limbs = $classname::normalize_little_limbs(self.limbs, extra_limb);
+            self.limbs = new_limbs;
+        }
+
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
         /// This normalize should only be used when the input is at most
         /// 2*p-1. Anything that might be bigger should use the normalize_big
         /// options, which use barrett.
         #[inline]
-        pub fn normalize_assign_little(&mut self, extra_limb: u64) {
-            let mut r = self.expand_one();
+        pub fn normalize_little_limbs(limbs:[u64; NUMLIMBS] , extra_limb: u64) -> [u64; NUMLIMBS] {
+            let mut r = limbs.expand_one();
             r[NUMLIMBS] = extra_limb;
 
             if r.greater_or_equal(&PRIME.expand_one()) {
@@ -512,7 +556,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             } else {
                 r.sub_assign(&[0u64; NUMLIMBS]);
             }
-            self.limbs = r.contract_one();
+            r.contract_one()
         }
 
         ///Take the extra limb and incorporate that into the existing value by modding by the prime.
@@ -890,7 +934,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             }
 
             #[test]
-            fn mont_equals_normal(a in arb_fp(), b in arb_fp()) {
+            fn mont_mult_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, (a.to_mont() * b.to_mont()).to_norm());
             }
 
@@ -900,8 +944,18 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             }
 
             #[test]
-            fn normas_times_mont_equals_normal(a in arb_fp(), b in arb_fp()) {
+            fn normal_times_mont_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, a* b.to_mont());
+            }
+
+            #[test]
+            fn mont_add_works(a in arb_fp(), b in arb_fp()) {
+                prop_assert_eq!(a + b, (a.to_mont() + b.to_mont()).to_norm())
+            }
+
+            #[test]
+            fn mont_sub_works(a in arb_fp(), b in arb_fp()) {
+                prop_assert_eq!(a - b, (a.to_mont() - b.to_mont()).to_norm())
             }
 
         }
