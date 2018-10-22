@@ -4,7 +4,7 @@ extern crate gridiron;
 extern crate rand;
 extern crate num_traits;
 
-use criterion::Criterion;
+use criterion::{Criterion, black_box};
 use gridiron::fp_256;
 use rand::{ThreadRng, RngCore};
 use num_traits::{Inv, Pow};
@@ -29,97 +29,155 @@ fn criterion_benchmark(c: &mut Criterion) {
         limbs
     }
 
-    fn gen_rand_fp256(rng : &mut ThreadRng) -> fp_256::Fp256 {
+    fn gen_rand_fp256_raw(rng : &mut ThreadRng) -> fp_256::Fp256 {
         fp_256::Fp256::new(gen_rand_limbs(rng))
     }
 
-    c.bench_function("normalize 256 bits to Fp256", |b| {
+    fn gen_rand_fp256(rng : &mut ThreadRng) -> fp_256::Fp256 {
+        (gen_rand_fp256_raw(rng)).normalize(0)
+    }
+
+    c.bench_function("normalize 256 bits to Fp256 100 times", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
             || {
-                gen_rand_fp256(&mut rng)
+                gen_rand_fp256_raw(&mut rng)
             },
             |val_to_norm| {
-                val_to_norm.normalize(0)
+                for _ in 0 .. 100 {
+                    black_box(val_to_norm.normalize(0));
+                }
             }
         );
     });
 
-    c.bench_function("normalize 512 bits to Fp256", |b| {
+    c.bench_function("normalize 512 bits to Fp256 100 times", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
             || {
                 gen_rand_double_limbs(&mut rng)
             },
             |val_to_norm| {
-                fp_256::Fp256::reduce_barrett(&val_to_norm)
+                for _ in 0 .. 100 {
+                    black_box(fp_256::Fp256::reduce_barrett(&val_to_norm));
+                }
             }
         );
     });
 
-    c.bench_function("add two Fp256s", |b| {
+    c.bench_function("add two Fp256s 100 times", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a = black_box(a + b);
+                }
+            }
+        );
+    });
+
+    c.bench_function("add an Fp256 into another Fp256 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a += b;
+                }
+            }
+        );
+    });
+
+    c.bench_function("subtract two Fp256s 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a = black_box(a - b);
+                }
+            }
+        );
+    });
+
+    c.bench_function("subtract an Fp256 from another Fp256 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a -= b;
+                }
+            }
+        );
+    });
+
+    c.bench_function("multiply two Fp256s 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a = black_box(a * b);
+                }
+            }
+        );
+    });
+
+    c.bench_function("multiply an Fp256 into another Fp256 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || {
+                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
+            },
+            |(mut a, b)| {
+                for _ in 0 .. 100 {
+                    a *= b;
+                }
+            }
+        );
+    });
+
+    c.bench_function("divide two Fp256s", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
             || {
                 (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
             },
             |(a, b)| {
-                a + b
+                black_box(a / b);
             }
         );
     });
 
-    c.bench_function("subtract two Fp256s", |b| {
+    c.bench_function("negate an Fp256 100 times", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
-            || {
-                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
-            },
-            |(a, b)| {
-                a - b
-            }
-        );
-    });
-
-    c.bench_function("multiply two Fp256s", |b| {
-        let mut rng = rand::thread_rng();
-        b.iter_with_setup(
-            || {
-                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
-            },
-            |(a, b)| {
-                a * b
-            }
-        );
-    });
-
-    c.bench_function("divide two Fp256s", |b| {
-        let mut rng = rand::thread_rng();
-        b.iter_with_setup(
-            || {
-                (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng))
-            },
-            |(a, b)| {
-                a / b
-            }
-        );
-    });
-
-    c.bench_function("negate an Fp256", |b| {
-        let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
             || {
                 gen_rand_fp256(&mut rng)
             },
-            |a| {
-                a.neg()
+            |mut a| {
+                for _ in 0 .. 100 {
+                    a = a.neg();
+                }
             }
         );
     });
 
-    c.bench_function("invert an Fp256", |b| {
+    c.bench_function("invert an Fp256", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
             || {
                 gen_rand_fp256(&mut rng)
             },
@@ -129,9 +187,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("exponentiate an Fp256", |b| {
+    c.bench_function("exponentiate an Fp256", |bench| {
         let mut rng = rand::thread_rng();
-        b.iter_with_setup(
+        bench.iter_with_setup(
             || {
                 let val = gen_rand_fp256(&mut rng);
                 let exp = rng.next_u64();

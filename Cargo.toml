@@ -21,6 +21,9 @@ criterion = "0.2"
 [features]
 unstable = []
 
+[profile.bench]
+opt-level = 3
+
 [[bench]]
 name = "benchmark"
 harness = false
