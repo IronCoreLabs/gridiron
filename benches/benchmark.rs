@@ -10,9 +10,7 @@ use num_traits::{Inv, Pow};
 use rand::{RngCore, ThreadRng};
 use std::ops::Neg;
 
-
 fn criterion_benchmark(c: &mut Criterion) {
-
     fn gen_rand_limbs(rng: &mut ThreadRng) -> [u64; fp_256::NUMLIMBS] {
         let mut limbs = [0u64; fp_256::NUMLIMBS];
         for limb in limbs.iter_mut() {
