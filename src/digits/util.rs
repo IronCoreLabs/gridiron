@@ -260,7 +260,7 @@ macro_rules! digits_u64_impls { ($($N:expr)+) => {
 
 
                 #[inline]
-                fn sub(&self, other: &[u64]) -> (Self, bool) {
+                fn sub(&self, other: &[u64]) -> Self::TARRAYCARRY {
                     let mut ret = self.copy();
                     let borrow = ret.sub_assign(other);
                     (ret, borrow)
