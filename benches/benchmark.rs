@@ -35,7 +35,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         (gen_rand_fp256_raw(rng)).normalize(0)
     }
 
-    c.bench_function("normalize 256 bits to Fp256 100 times", |bench| {
+    c.bench_function("Fp256 - normalize (256 bits to Fp256 100 times)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || gen_rand_fp256_raw(&mut rng),
@@ -47,19 +47,22 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("normalize 512 bits to Fp256 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_double_limbs(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(fp_256::Fp256::reduce_barrett(&val_to_norm));
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - reduce_barrett (normalize 512 bits to Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_double_limbs(&mut rng),
+                |val_to_norm| {
+                    for _ in 0..100 {
+                        black_box(fp_256::Fp256::reduce_barrett(&val_to_norm));
+                    }
+                },
+            );
+        },
+    );
 
-    c.bench_function("add two Fp256s 100 times", |bench| {
+    c.bench_function("Fp256 - add (add two Fp256s 100 times)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
@@ -71,19 +74,22 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("add an Fp256 into another Fp256 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a += b;
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - add_assign (add an Fp256 into another Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a += b;
+                    }
+                },
+            );
+        },
+    );
 
-    c.bench_function("subtract two Fp256s 100 times", |bench| {
+    c.bench_function("Fp256 - sub (subtract two Fp256s 100 times)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
@@ -95,19 +101,22 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("subtract an Fp256 from another Fp256 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a -= b;
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - sub_assign (subtract an Fp256 from another Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a -= b;
+                    }
+                },
+            );
+        },
+    );
 
-    c.bench_function("multiply two Fp256s 100 times", |bench| {
+    c.bench_function("Fp256 - mul (two Fp256s 100 times)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
@@ -119,32 +128,38 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("multiply an Fp256 into another Fp256 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a *= b;
-                }
-            },
-        );
-    });
-
-    c.bench_function("bitwise AND two Fp256s 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a = black_box(a & b);
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - mul_assign (an Fp256 into another Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a *= b;
+                    }
+                },
+            );
+        },
+    );
 
     c.bench_function(
-        "bitwise AND an Fp256 into another Fp256 100 times",
+        "Fp256 - bitand (bitwise AND two Fp256s 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a = black_box(a & b);
+                    }
+                },
+            );
+        },
+    );
+
+    c.bench_function(
+        "Fp256 - bitand_assign (bitwise AND an Fp256 into another Fp256 100 times)",
         |bench| {
             let mut rng = rand::thread_rng();
             bench.iter_with_setup(
@@ -158,31 +173,37 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
 
-    c.bench_function("bitwise AND an Fp256 and a u64 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), rng.next_u64()),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a = black_box(a & b);
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - bitand (bitwise AND an Fp256 and a u64 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), rng.next_u64()),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a = black_box(a & b);
+                    }
+                },
+            );
+        },
+    );
 
-    c.bench_function("bitwise AND a u64 into an Fp256 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), rng.next_u64()),
-            |(mut a, b)| {
-                for _ in 0..100 {
-                    a &= b;
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - bitand_assign (bitwise AND a u64 into an Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp256(&mut rng), rng.next_u64()),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a &= b;
+                    }
+                },
+            );
+        },
+    );
 
-    c.bench_function("divide two Fp256s", |bench| {
+    c.bench_function("Fp256 - div (divide two Fp256s)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
@@ -192,7 +213,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("negate an Fp256 100 times", |bench| {
+    c.bench_function("Fp256 - neg (negate an Fp256 100 times)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || gen_rand_fp256(&mut rng),
@@ -204,17 +225,17 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("invert an Fp256", |bench| {
+    c.bench_function("Fp256 - inv (invert an Fp256)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.inv());
     });
 
-    c.bench_function("square an Fp256", |bench| {
+    c.bench_function("Fp256 - square (square an Fp256)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.square());
     });
 
-    c.bench_function("exponentiate an Fp256 by an Fp256", |bench| {
+    c.bench_function("Fp256 - pow (exponentiate an Fp256 by an Fp256)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
@@ -222,7 +243,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("exponentiate an Fp256 by a u64", |bench| {
+    c.bench_function("Fp256 - pow (exponentiate an Fp256 by a u64)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
             || (gen_rand_fp256(&mut rng), rng.next_u64()),
@@ -230,18 +251,21 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("roundtrip to and from byte array 100 times", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp256(&mut rng),
-            |a| {
-                for _ in 0..100 {
-                    let byte_array = a.to_bytes_array();
-                    fp_256::Fp256::from(byte_array);
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - from, to_bytes_array (roundtrip to and from byte array 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp256(&mut rng),
+                |a| {
+                    for _ in 0..100 {
+                        let byte_array = a.to_bytes_array();
+                        fp_256::Fp256::from(byte_array);
+                    }
+                },
+            );
+        },
+    );
 }
 
 criterion_group! {
