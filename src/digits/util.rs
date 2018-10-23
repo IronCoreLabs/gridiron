@@ -760,11 +760,16 @@ pub fn mul_add_3_limbs_array(x: u64, y: u64, z: u64) -> [u64; 2] {
     [temp.1, temp.0]
 }
 
+pub fn mul_1_limb_by_1_limb(u: u64, v: u64) -> (u64, u64) {
+    let res = u as u128 * v as u128;
+    ((res >> 64) as u64, res as u64)
+}
+
 /* Adapted from https://github.com/Aatch/ramp/blob/master/src/ll/limb.rs
  * Apache License
  */
 #[inline]
-pub fn mul_1_limb_by_1_limb(u: u64, v: u64) -> (u64, u64) {
+pub fn mul_1_limb_by_1_limb64(u: u64, v: u64) -> (u64, u64) {
     // see http://www.hackersdelight.org/hdcodetxt/muldwu.c.txt
 
     const BITS: usize = 32;
