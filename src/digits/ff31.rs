@@ -141,7 +141,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     impl AddAssign for $classname {
         #[inline]
         fn add_assign(&mut self, other: $classname) {
-            unimplemented!();
+            let mut a = self.limbs;
+            let mut ctl = $classname::add_limbs(&mut a, other.limbs, 1);
+            ctl |= $classname::sub_limbs(&mut a, PRIME, 0).not();
+            $classname::sub_limbs(&mut a, PRIME, ctl);
         }
     }
 
@@ -157,7 +160,9 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     impl SubAssign for $classname {
         #[inline]
         fn sub_assign(&mut self, other: $classname) {
-            unimplemented!();
+            let mut a = self.limbs;
+            let needs_add = $classname::sub_limbs(&mut a, other.limbs, 1);
+            $classname::add_limbs(&mut a, PRIME, needs_add);
         }
     }
 
@@ -268,7 +273,47 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         #[inline]
         fn mul(self, rhs: Monty) -> Monty {
             // Constant time montgomery mult from https://www.bearssl.org/bigint.html
-            unimplemented!();
+            let a = self.limbs;
+            let b = rhs.limbs;
+            let mut d = [0u32; NUMLIMBS]; // result
+            let mut dh = 0u64; // can be up to 2W
+            for i in 0 .. NUMLIMBS {
+                // f←(d[0]+a[i]b[0])g mod W
+                // g is MONTM0INV, W is word size
+                // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
+                // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
+                let f: u32 = $classname::mul_31_lo(d[0] + $classname::mul_31_lo(a[i], b[0]), MONTM0INV);
+                let mut z: u64; // can be up to 2W^2
+                let mut r = 0u64; // can be up to 2W
+                let ai = a[i];
+                for j in 0 .. NUMLIMBS {
+                    // z ← d[j]+a[i]b[j]+fm[j]+c
+                    z = (ai as u64 * b[j] as u64) + (d[j] as u64) + (f as u64 * PRIME[j] as u64) + (r as u64);
+                    r = z >> 31;
+                    // If j>0, set: d[j−1] ← z mod W
+                    if j > 0 {
+                        d[j-1] = (z as u32) & 0x7FFFFFFF;
+                    }
+                }
+                // z ← dh+c
+                let zh = dh.add(&r);
+                // d[N−1] ← z mod W
+                d[9 - 1] = (zh as u32) & 0x7FFFFFFF;
+                // dh ← ⌊z/W⌋
+                dh = zh >> 31
+            }
+
+            // if dh≠0 or d≥m, set: d←d−m
+            //  br_i31_sub(d, m, NEQ(dh, 0) | NOT(br_i31_sub(d, m, 0)));
+            // if dh != 0u64 || d.greater_or_equal(&Fp256_32::PRIME) {
+            //     d.sub_assign(&Fp256_32::PRIME);
+            // } else{
+            //     d.sub_assign(&[0u64; 9]);
+            // }
+            let greater_than_prime = $classname::sub_limbs(&mut d,PRIME,0).not();
+            //COLT: == 0 should be const time equality.
+            $classname::sub_limbs(&mut d,PRIME, (dh == 0) as u32 | greater_than_prime);
+            Monty { limbs: d }
         }
     }
 
@@ -459,7 +504,41 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         // }
         // debug_assert!(DigitsArray::cmp(&r, &PRIME) == Some(Ordering::Less));
         // r
-    }}
+    }
+
+    #[inline]
+    fn add_limbs(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
+        let mut cc = 0u32;
+        for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
+            let aw = *aa;
+            let bw = *bb;
+            let naw = aw + bw + cc;
+            cc = naw >> 31;
+            *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
+        }
+        cc
+    }
+
+    #[inline]
+    fn sub_limbs(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
+        println!("{:?} and {:?}", a,b);
+        let mut cc = 0u32;
+        for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
+            let aw = *aa;
+            let bw = *bb;
+            println!("{:?}, {:?}, {:?}",aw, bw, cc );
+            let naw = aw - bw - cc;
+            cc = naw >> 31;
+            *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
+        }
+        cc
+    }
+
+    #[inline]
+    fn mul_31_lo(x:u32, y:u32) -> u32 {
+        (x as u64 * y as u64) as u32 & 0x7FFFFFFFu32
+    }
+}
 
 
     #[cfg(test)]
@@ -609,7 +688,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            fn mont_mult_equals_normal(a in arb_fp(), b in arb_fp()) {
+            fn monty_mult_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, (a.to_monty() * b.to_monty()).to_norm());
             }
 
