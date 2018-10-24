@@ -35,17 +35,20 @@ fn criterion_benchmark(c: &mut Criterion) {
         (gen_rand_fp256_raw(rng)).normalize_big(0)
     }
 
-    c.bench_function("Fp256 - normalize_big (256 bits to Fp256 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp256_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_big(0));
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - normalize_big (256 bits to Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp256_raw(&mut rng),
+                |val_to_norm| {
+                    for _ in 0..100 {
+                        black_box(val_to_norm.normalize_big(0));
+                    }
+                },
+            );
+        },
+    );
 
     c.bench_function(
         "Fp256 - reduce_barrett (normalize 512 bits to Fp256 100 times)",
@@ -270,7 +273,12 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("Fp256 - Monty - Mul 100 times", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng).to_monty(), gen_rand_fp256(&mut rng).to_monty()),
+            || {
+                (
+                    gen_rand_fp256(&mut rng).to_monty(),
+                    gen_rand_fp256(&mut rng).to_monty(),
+                )
+            },
             |(mut a, b)| {
                 for _ in 0..100 {
                     a = black_box(a * b);
