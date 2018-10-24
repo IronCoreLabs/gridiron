@@ -266,6 +266,42 @@ fn criterion_benchmark(c: &mut Criterion) {
             );
         },
     );
+
+    c.bench_function("Fp256 - Monty - Mul 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || (gen_rand_fp256(&mut rng).to_monty(), gen_rand_fp256(&mut rng).to_monty()),
+            |(mut a, b)| {
+                for _ in 0..100 {
+                    a = black_box(a * b);
+                }
+            },
+        );
+    });
+
+    c.bench_function("Fp256 - Monty - to_monty 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || gen_rand_fp256(&mut rng),
+            |a| {
+                for _ in 0..100 {
+                    black_box(a.to_monty());
+                }
+            },
+        );
+    });
+
+    c.bench_function("Fp256 - Monty - to_norm 100 times", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || gen_rand_fp256(&mut rng).to_monty(),
+            |a| {
+                for _ in 0..100 {
+                    black_box(a.to_norm());
+                }
+            },
+        );
+    });
 }
 
 criterion_group! {

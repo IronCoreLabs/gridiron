@@ -532,7 +532,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     impl $classname {
-        pub fn to_mont(self) -> Mont {
+        pub fn to_monty(self) -> Mont {
             Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
         }
 
@@ -929,33 +929,33 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             }
 
             #[test]
-            fn to_mont_roundtrip_to_norm(a in arb_fp()) {
-                prop_assert_eq!(a, a.to_mont().to_norm());
+            fn to_monty_roundtrip_to_norm(a in arb_fp()) {
+                prop_assert_eq!(a, a.to_monty().to_norm());
             }
 
             #[test]
             fn mont_mult_equals_normal(a in arb_fp(), b in arb_fp()) {
-                prop_assert_eq!(a * b, (a.to_mont() * b.to_mont()).to_norm());
+                prop_assert_eq!(a * b, (a.to_monty() * b.to_monty()).to_norm());
             }
 
             #[test]
             fn mont_times_normal_equals_normal(a in arb_fp(), b in arb_fp()) {
-                prop_assert_eq!(a * b, a.to_mont()* b);
+                prop_assert_eq!(a * b, a.to_monty()* b);
             }
 
             #[test]
             fn normal_times_mont_equals_normal(a in arb_fp(), b in arb_fp()) {
-                prop_assert_eq!(a * b, a* b.to_mont());
+                prop_assert_eq!(a * b, a* b.to_monty());
             }
 
             #[test]
             fn mont_add_works(a in arb_fp(), b in arb_fp()) {
-                prop_assert_eq!(a + b, (a.to_mont() + b.to_mont()).to_norm())
+                prop_assert_eq!(a + b, (a.to_monty() + b.to_monty()).to_norm())
             }
 
             #[test]
             fn mont_sub_works(a in arb_fp(), b in arb_fp()) {
-                prop_assert_eq!(a - b, (a.to_mont() - b.to_mont()).to_norm())
+                prop_assert_eq!(a - b, (a.to_monty() - b.to_monty()).to_norm())
             }
 
         }

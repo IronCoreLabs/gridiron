@@ -264,7 +264,7 @@ mod lib {
             0x3d22515b4d209657,
             0x1374ae45, // most sig
         ]);
-        assert_eq!((a.to_mont() * a.to_mont()).to_norm(), expected);
+        assert_eq!((a.to_monty() * a.to_monty()).to_norm(), expected);
     }
 
     #[test]
@@ -277,7 +277,7 @@ mod lib {
             10154744129314385811,
             8474433327013088965,
         ]);
-        assert_eq!(a.to_mont().limbs, expected.limbs);
+        assert_eq!(a.to_monty().limbs, expected.limbs);
     }
     #[test]
     fn mont_mult3() {
@@ -289,7 +289,7 @@ mod lib {
             2400683194666791604,
             2889995408191712097,
         ]);
-        assert_eq!((a.to_mont() * a.to_mont()).to_norm(), expected);
+        assert_eq!((a.to_monty() * a.to_monty()).to_norm(), expected);
     }
 
     #[test]
