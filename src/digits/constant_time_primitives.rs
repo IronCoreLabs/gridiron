@@ -154,7 +154,7 @@ impl ConstantSignedPrimitives for i64 {
     }
 }
 
-pub trait ConstantUnsignedArray {
+pub trait ConstantUnsignedArray31 {
     fn const_not(self) -> Self;
     fn const_eq(self, y: Self) -> ConstantBool<u32>;
     fn const_neq(self, y: Self) -> ConstantBool<u32>;
@@ -163,9 +163,9 @@ pub trait ConstantUnsignedArray {
     fn const_lt(self, y: Self) -> ConstantBool<u32>;
     fn const_le(self, y: Self) -> ConstantBool<u32>;
 }
-macro_rules! constant_unsigned_array32 { ($($N:expr),*) => { $(
-/// Assumes maximum of 31-bits used per limb
-impl ConstantUnsignedArray for [u32; $N] {
+macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
+/// Must have maximum of 31-bits used per limb
+impl ConstantUnsignedArray31 for [u32; $N] {
     #[inline]
     fn const_not(mut self) -> Self {
         self.iter_mut().for_each(|l| *l ^= 1);
@@ -189,8 +189,8 @@ impl ConstantUnsignedArray for [u32; $N] {
     fn const_lt(self, y: Self) -> ConstantBool<u32> {
         let mut borrow = 0u32;
         self.iter().zip(y.iter()).for_each ( |(a, b)| {
-            let diff = (*a & 0x7FFFFFFF) as i32 - (*b & 0x7FFFFFFF) as i32 - borrow as i32;
-            borrow = (diff as u32) >> 31;
+            let diff = (*a).wrapping_sub(*b).wrapping_sub(borrow);
+            borrow = diff >> 31;
         });
         ConstantBool(borrow)
     }
@@ -211,7 +211,7 @@ impl ConstantUnsignedArray for [u32; $N] {
     }
 }
 )+ }}
-constant_unsigned_array32! { 9, 16 }
+constant_unsigned_array31! { 9, 16 }
 
 #[cfg(test)]
 mod tests {
@@ -225,8 +225,8 @@ mod tests {
     fn const_eq() {
         assert_eq!([1u32; 9].const_eq([1u32; 9]).0, 1u32);
         assert_eq!([1u32; 9].const_eq([0u32; 9]).0, 0u32);
-        assert_eq!([0xFFFFFFFFu32; 9].const_eq([1u32; 9]).0, 0u32);
-        assert_eq!([0xFFFFFFFFu32; 9].const_eq([0xFFFFFFFFu32; 9]).0, 1u32);
+        assert_eq!([0x7FFFFFFFu32; 9].const_eq([1u32; 9]).0, 0u32);
+        assert_eq!([0x7FFFFFFFu32; 9].const_eq([0x7FFFFFFFu32; 9]).0, 1u32);
         let left: [u32; 9] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
         assert_eq!(left.const_eq(left).0, 1u32);
         let right: [u32; 9] = [1, 2, 3, 3, 5, 6, 7, 8, 9];
@@ -236,20 +236,23 @@ mod tests {
     fn const_gt() {
         assert_eq!([1u32; 9].const_gt([1u32; 9]).0, 0u32);
         // test little minus big
-        let max = [0xFFFFFFFFu32; 9];
+        let max = [0x7FFFFFFFu32; 9];
         let big = [
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFEu32, // max - 2^31
-            0xFFFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
         ];
         let little = [4u32; 9];
+        let zero = [0u32; 9];
 
+        assert_eq!(max.const_gt(zero).0, 1u32);
+        assert_eq!(zero.const_gt(max).0, 0u32);
         assert_eq!(max.const_gt(big).0, 1u32);
         assert_eq!(big.const_gt(max).0, 0u32);
         assert_eq!(max.const_gt(little).0, 1u32);
@@ -263,17 +266,17 @@ mod tests {
     fn const_lt() {
         assert_eq!([1u32; 9].const_lt([1u32; 9]).0, 0u32);
         // test little minus big
-        let max = [0xFFFFFFFFu32; 9];
+        let max = [0x7FFFFFFFu32; 9];
         let big = [
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFEu32, // max - 2^31
-            0xFFFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
         ];
         let little = [4u32; 9];
 
@@ -290,17 +293,17 @@ mod tests {
     fn const_le() {
         assert_eq!([1u32; 9].const_le([1u32; 9]).0, 1u32);
         // test little minus big
-        let max = [0xFFFFFFFFu32; 9];
+        let max = [0x7FFFFFFFu32; 9];
         let big = [
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFEu32, // max - 2^31
-            0xFFFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
         ];
         let little = [4u32; 9];
 
@@ -317,17 +320,17 @@ mod tests {
     fn const_ge() {
         assert_eq!([1u32; 9].const_ge([1u32; 9]).0, 1u32);
         // test little minus big
-        let max = [0xFFFFFFFFu32; 9];
+        let max = [0x7FFFFFFFu32; 9];
         let big = [
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFFu32,
-            0xFFFFFFFEu32, // max - 2^31
-            0xFFFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
         ];
         let little = [4u32; 9];
 
