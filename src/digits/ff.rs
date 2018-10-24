@@ -66,7 +66,7 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
     }
 
     #[derive(PartialEq, Eq, Ord, Clone, Copy)]
-    pub struct Mont{
+    pub struct Monty{
         pub(crate) limbs: [u64; NUMLIMBS],
     }
 
@@ -381,11 +381,11 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
-    impl Mont {
+    impl Monty {
         pub fn to_norm(self) -> $classname {
             let mut one = [0u64; NUMLIMBS];
             one[0] = 1;
-            $classname { limbs: (self * Mont{limbs: one}).limbs }
+            $classname { limbs: (self * Monty{limbs: one}).limbs }
         }
 
         #[inline]
@@ -394,16 +394,16 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             self.limbs = new_limbs;
         }
 
-        pub (crate) fn new(limbs:[u64; NUMLIMBS]) -> Mont{
-            Mont{limbs}
+        pub (crate) fn new(limbs:[u64; NUMLIMBS]) -> Monty{
+            Monty{limbs}
         }
     }
 
-    impl Mul<Mont> for Mont {
-        type Output = Mont;
+    impl Mul<Monty> for Monty {
+        type Output = Monty;
 
         #[inline]
-        fn mul(self, rhs: Mont) -> Mont {
+        fn mul(self, rhs: Monty) -> Monty {
             // Constant time montgomery mult from https://www.bearssl.org/bigint.html
             let a = self.limbs;
             let b = rhs.limbs;
@@ -453,40 +453,40 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
             } else{
                 d.sub_assign(&[0u64; NUMLIMBS]);
             }
-            Mont { limbs: d }
+            Monty { limbs: d }
         }
     }
 
-    impl Mul<$classname> for Mont {
+    impl Mul<$classname> for Monty {
         type Output = $classname;
 
         #[inline]
         fn mul(self, rhs: $classname) -> $classname {
-            $classname::new((self * Mont::new(rhs.limbs)).limbs)
+            $classname::new((self * Monty::new(rhs.limbs)).limbs)
         }
     }
 
-    impl Mul<Mont> for $classname {
+    impl Mul<Monty> for $classname {
         type Output = $classname;
 
         #[inline]
-        fn mul(self, rhs: Mont) -> $classname {
-            $classname::new((Mont::new(self.limbs) * rhs).limbs)
+        fn mul(self, rhs: Monty) -> $classname {
+            $classname::new((Monty::new(self.limbs) * rhs).limbs)
         }
     }
 
-    impl Add<Mont> for Mont {
-        type Output = Mont;
+    impl Add<Monty> for Monty {
+        type Output = Monty;
         #[inline]
-        fn add(mut self, rhs: Mont) -> Mont {
+        fn add(mut self, rhs: Monty) -> Monty {
             self += rhs;
             self
         }
     }
 
-    impl AddAssign for Mont {
+    impl AddAssign for Monty {
         #[inline]
-        fn add_assign(&mut self, other: Mont) {
+        fn add_assign(&mut self, other: Monty) {
             let carry = self.limbs.add_assign(&other.limbs);
 //TODO this is duplicate.
             let mut r = self.limbs.expand_one();
@@ -502,18 +502,18 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
-    impl Sub<Mont> for Mont {
-        type Output = Mont;
+    impl Sub<Monty> for Monty {
+        type Output = Monty;
         #[inline]
-        fn sub(mut self, rhs: Mont) -> Mont {
+        fn sub(mut self, rhs: Monty) -> Monty {
             self -= rhs;
             self
         }
     }
 
-    impl SubAssign for Mont {
+    impl SubAssign for Monty {
         #[inline]
-        fn sub_assign(&mut self, other: Mont) {
+        fn sub_assign(&mut self, other: Monty) {
             let borrow = self.limbs.sub_assign(&other.limbs);
             if borrow {
                 self.limbs.add_assign(&PRIME);
@@ -524,16 +524,16 @@ macro_rules! fp { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $p
         }
     }
 
-    impl PartialOrd for Mont {
+    impl PartialOrd for Monty {
         #[inline]
-        fn partial_cmp(&self, other: &Mont) -> Option<Ordering> {
+        fn partial_cmp(&self, other: &Monty) -> Option<Ordering> {
             DigitsArray::cmp(&self.limbs, &other.limbs)
         }
     }
 
     impl $classname {
-        pub fn to_monty(self) -> Mont {
-            Mont{limbs:self.limbs} * Mont{limbs:MONTRSQUARED}
+        pub fn to_monty(self) -> Monty {
+            Monty{limbs:self.limbs} * Monty{limbs:MONTRSQUARED}
         }
 
         #[inline]
