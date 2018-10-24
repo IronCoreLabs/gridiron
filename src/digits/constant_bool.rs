@@ -9,7 +9,7 @@ use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
  */
 
 #[derive(Copy, Clone)]
-pub struct ConstantBool<T: NumOps + Copy>(T);
+pub struct ConstantBool<T: NumOps + Copy>(pub T);
 
 macro_rules! constantbool_from_impl {
     ($($t:ty)*) => ($(
@@ -63,7 +63,15 @@ impl<T> ConstantBool<T>
 where
     u64: From<T>,
     Wrapping<T>: Neg<Output = Wrapping<T>>,
-    T: NumOps + Copy + Neg<Output = T> + BitAnd<Output = T> + BitXor<Output = T> + From<u64> + One,
+    T: NumOps
+        + Copy
+        + Neg<Output = T>
+        + BitAnd<Output = T>
+        + BitXor<Output = T>
+        + From<u64>
+        + One
+        + Zero
+        + PartialEq,
 {
     pub fn mux(self, x: T, y: T) -> T {
         y ^ (Wrapping(self.0).neg().0 & (x ^ y))
