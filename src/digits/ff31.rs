@@ -143,8 +143,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         fn add_assign(&mut self, other: $classname) {
             let a = &mut self.limbs;
             let mut ctl = $classname::add_limbs(a, other.limbs, 1);
-            ctl |= $classname::sub_limbs(a, PRIME, 0).not();
-            $classname::sub_limbs(a, PRIME, ctl);
+            ctl |= $classname::sub_assign_limbs_if(a, PRIME, 0).not();
+            $classname::sub_assign_limbs_if(a, PRIME, ctl);
         }
     }
 
@@ -161,7 +161,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         #[inline]
         fn sub_assign(&mut self, other: $classname) {
             let a = &mut self.limbs;
-            let needs_add = $classname::sub_limbs(a, other.limbs, 1);
+            let needs_add = $classname::sub_assign_limbs_if(a, other.limbs, 1);
             $classname::add_limbs(a, PRIME, needs_add);
         }
     }
@@ -305,7 +305,15 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             // if dh≠0 or d≥m, set: d←d−m
-            // d.sub_assign_if(m, dh.const_neq(0) | d.const_gt(PRIME));
+            //  br_i31_sub(d, m, NEQ(dh, 0) | NOT(br_i31_sub(d, m, 0)));
+            // if dh != 0u64 || d.greater_or_equal(&Fp256_32::PRIME) {
+            //     d.sub_assign(&Fp256_32::PRIME);
+            // } else{
+            //     d.sub_assign(&[0u64; 9]);
+            // }
+            let greater_than_prime = $classname::sub_assign_limbs_if(&mut d,PRIME,0).not();
+            //COLT: == 0 should be const time equality.
+            $classname::sub_assign_limbs_if(&mut d,PRIME, (dh == 0) as u32 | greater_than_prime);
             Monty { limbs: d }
         }
     }
@@ -384,8 +392,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         /// options, which use barrett.
         #[inline]
         pub fn normalize_little_limbs(mut limbs:[u32; NUMLIMBS]) -> [u32; NUMLIMBS] {
-            let needs_sub = $classname::sub_limbs(&mut limbs, PRIME, 0);
-            $classname::sub_limbs(&mut limbs, PRIME, needs_sub);
+            let needs_sub = $classname::sub_assign_limbs_if(&mut limbs, PRIME, 0);
+            $classname::sub_assign_limbs_if(&mut limbs, PRIME, needs_sub);
             limbs
         }
 
@@ -515,7 +523,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
 
     #[inline]
-    fn sub_limbs(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
+    fn sub_assign_limbs_if(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
         let mut cc = 0u32;
         for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
             let aw = *aa;
@@ -541,7 +549,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             *ai = aw & 0x7FFFFFFF;
             cc = aw >> 31;
         }
-        println!("{:?}", a);
     }
 }
 
@@ -667,7 +674,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             #[test]
             fn neg(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(-(-a), a);
-                // prop_assert_eq!(a - b, a + -b);
+                prop_assert_eq!(a - b, a + -b);
                 // prop_assert_eq!(-(a * b), -a * b);
                 // prop_assert_eq!(-a * b, a * -b);
                 // prop_assert_eq!(a + -a, $classname::zero());
