@@ -521,13 +521,11 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
     #[inline]
     fn sub_limbs(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
-        println!("{:?} and {:?}", a,b);
         let mut cc = 0u32;
         for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
             let aw = *aa;
             let bw = *bb;
-            println!("{:?}, {:?}, {:?}",aw, bw, cc );
-            let naw = aw - bw - cc;
+            let naw = aw.wrapping_sub(bw).wrapping_sub(cc);
             cc = naw >> 31;
             *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
         }
