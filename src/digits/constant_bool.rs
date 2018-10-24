@@ -1,6 +1,8 @@
 use num_traits::{NumOps, One, Zero};
 use std::convert::From;
+use std::mem::size_of;
 use std::num::Wrapping;
+use std::ops::{Add, AddAssign, Mul, Rem, Shr, ShrAssign, Sub, SubAssign};
 use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 
 /*
@@ -61,26 +63,31 @@ impl<T: NumOps + Copy + BitOr<Output = T>> BitOr for ConstantBool<T> {
 //Neg<Output = Wrapping<T>>
 impl<T> ConstantBool<T>
 where
-    u64: From<T>,
-    Wrapping<T>: Neg<Output = Wrapping<T>>,
+    // u64: From<T>,
+    Wrapping<T>: Neg<Output = Wrapping<T>> + BitOr<Output = Wrapping<T>>,
     T: NumOps
         + Copy
-        + Neg<Output = T>
         + BitAnd<Output = T>
         + BitXor<Output = T>
-        + From<u64>
+        + BitOr<Output = T>
+        + Shr<usize, Output = T>
         + One
         + Zero
         + PartialEq,
 {
+    #[inline]
     pub fn mux(self, x: T, y: T) -> T {
         y ^ (Wrapping(self.0).neg().0 & (x ^ y))
     }
+    #[inline]
     fn is_zero(i: T) -> Self {
         // let q = i as u64;
-        let q = u64::from(i);
-        ConstantBool(T::from(!(q | q.wrapping_neg()) >> 63))
+        // let q = u64::from(i);
+        let q = Wrapping(i);
+        let shift_amount = size_of::<T>() * 8 - 1;
+        ConstantBool((q | q.neg()).0 >> shift_amount).not()
     }
+    #[inline]
     fn not_zero(i: T) -> Self {
         ConstantBool(Self::is_zero(i).0 ^ <T>::one())
     }

@@ -277,7 +277,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let a = self.limbs;
             let b = rhs.limbs;
             let mut d = [0u32; NUMLIMBS]; // result
-            let mut dh = 0u64; // can be up to 2W
+            let mut dh = 0u32; // can be up to 2W
             for i in 0 .. NUMLIMBS {
                 // f←(d[0]+a[i]b[0])g mod W
                 // g is MONTM0INV, W is word size
@@ -285,35 +285,27 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
                 let f: u32 = $classname::mul_31_lo(d[0] + $classname::mul_31_lo(a[i], b[0]), MONTM0INV);
                 let mut z: u64; // can be up to 2W^2
-                let mut r = 0u64; // can be up to 2W
+                let mut r = 0u32; // can be up to 2W
                 let ai = a[i];
                 for j in 0 .. NUMLIMBS {
                     // z ← d[j]+a[i]b[j]+fm[j]+c
                     z = (ai as u64 * b[j] as u64) + (d[j] as u64) + (f as u64 * PRIME[j] as u64) + (r as u64);
-                    r = z >> 31;
+                    r = (z >> 31) as u32;
                     // If j>0, set: d[j−1] ← z mod W
                     if j > 0 {
                         d[j-1] = (z as u32) & 0x7FFFFFFF;
                     }
                 }
                 // z ← dh+c
-                let zh = dh.add(&r);
+                z = (dh + r) as u64;
                 // d[N−1] ← z mod W
-                d[9 - 1] = (zh as u32) & 0x7FFFFFFF;
+                d[NUMLIMBS - 1] = (z as u32) & 0x7FFFFFFF;
                 // dh ← ⌊z/W⌋
-                dh = zh >> 31
+                dh = (z >> 31) as u32;
             }
 
             // if dh≠0 or d≥m, set: d←d−m
-            //  br_i31_sub(d, m, NEQ(dh, 0) | NOT(br_i31_sub(d, m, 0)));
-            // if dh != 0u64 || d.greater_or_equal(&Fp256_32::PRIME) {
-            //     d.sub_assign(&Fp256_32::PRIME);
-            // } else{
-            //     d.sub_assign(&[0u64; 9]);
-            // }
-            let greater_than_prime = $classname::sub_limbs(&mut d,PRIME,0).not();
-            //COLT: == 0 should be const time equality.
-            $classname::sub_limbs(&mut d,PRIME, (dh == 0) as u32 | greater_than_prime);
+            // d.sub_assign_if(m, dh.const_neq(0) | d.const_gt(PRIME));
             Monty { limbs: d }
         }
     }

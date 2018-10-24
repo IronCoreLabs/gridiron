@@ -223,7 +223,7 @@ macro_rules! digits_u64_impls { ($($M:ident $N:expr),+) => {
                     for (i, biglimb) in self.iter().take($N - 1).enumerate() {
                         let (hi, lo) = mul_1_limb_by_1_limb(*biglimb, y);
                         ret[i] = ret[i].wrapping_add(lo);
-                            ret[i + 1] = ret[i+1].wrapping_add(hi).wrapping_add(ret[i].const_lt(lo));
+                            ret[i + 1] = ret[i+1].wrapping_add(hi).wrapping_add(ret[i].const_lt(lo).0);
                     }
                     let (_, lo) = mul_1_limb_by_1_limb(self[$N-1], y);
                     ret[$N - 1] = ret[$N - 1].wrapping_add(lo);
@@ -602,7 +602,7 @@ macro_rules! digits_u64_impls { ($($M:ident $N:expr),+) => {
                 fn cmpi(&self, y: &(Self)) -> i64 {
                     let mut res = 0i64;
                     self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
-                        let limbcmp = (l.const_gt(*r) as i64) | -(r.const_gt(*l) as i64);
+                        let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
                         res = res.abs().mux(res, limbcmp);
                     });
                     res
@@ -815,7 +815,7 @@ pub fn xdiv_2_limbs_by_1_limb(u1: u64, u0: u64, v: u64) -> (u64, u64) {
         let j: usize = 64 - k;
         let w = (hi << j) | (lo >> k);
         // let ctl = (if w >= v { 1 } else { 0 }) | (hi >> k);
-        let ctl = w.const_ge(v) | (hi >> k);
+        let ctl = w.const_ge(v).0 | (hi >> k);
         let hi2 = w.wrapping_sub(v) >> j;
         let lo2 = lo.wrapping_sub(v << k);
         hi = ctl.mux(hi2, hi);
@@ -823,7 +823,7 @@ pub fn xdiv_2_limbs_by_1_limb(u1: u64, u0: u64, v: u64) -> (u64, u64) {
         q |= ctl << k;
     }
     // let cf = (if lo >= v { 1 } else { 0 }) | hi;
-    let cf = lo.const_ge(v) | hi;
+    let cf = lo.const_ge(v).0 | hi;
     q |= cf;
     let r = cf.mux(lo.wrapping_sub(v), lo);
     // println!("{} {} / {} = {} rem {}", u1, u0, v, q, r);

@@ -5,19 +5,26 @@
 
 use digits::constant_bool::*;
 // use $crate::digits::constant_bool::*;
+use num_traits::{NumOps, One, Zero};
+use std::convert::From;
 use std::mem::size_of;
-use std::ops::Not;
+use std::num::Wrapping;
+use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 
-pub trait ConstantUnsignedPrimitives {
+pub trait ConstantUnsignedPrimitives
+where
+    Wrapping<Self>: Neg<Output = Wrapping<Self>> + BitOr<Output = Wrapping<Self>>,
+    Self: NumOps + Copy + BitAnd<Output = Self> + BitXor<Output = Self> + One + Zero + PartialEq,
+{
     const SIZE: u32;
     fn not(self) -> Self;
     fn mux(self, x: Self, y: Self) -> Self;
-    fn const_eq(self, y: Self) -> Self;
-    fn const_neq(self, y: Self) -> Self;
-    fn const_gt(self, y: Self) -> Self;
-    fn const_ge(self, y: Self) -> Self;
-    fn const_lt(self, y: Self) -> Self;
-    fn const_le(self, y: Self) -> Self;
+    fn const_eq(self, y: Self) -> ConstantBool<Self>;
+    fn const_neq(self, y: Self) -> ConstantBool<Self>;
+    fn const_gt(self, y: Self) -> ConstantBool<Self>;
+    fn const_ge(self, y: Self) -> ConstantBool<Self>;
+    fn const_lt(self, y: Self) -> ConstantBool<Self>;
+    fn const_le(self, y: Self) -> ConstantBool<Self>;
     fn min(self, y: Self) -> Self;
     fn max(self, y: Self) -> Self;
 }
@@ -49,31 +56,31 @@ impl ConstantUnsignedPrimitives for $T {
         y ^ (self.wrapping_neg() & (x ^ y))
     }
     #[inline]
-    fn const_eq(self, y: Self) -> Self {
+    fn const_eq(self, y: Self) -> ConstantBool<Self> {
         let q = self ^ y;
-        ConstantUnsignedPrimitives::not((q | q.wrapping_neg()) >> (Self::SIZE - 1))
+        ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1)).not()
     }
     #[inline]
-    fn const_neq(self, y: Self) -> Self {
+    fn const_neq(self, y: Self) -> ConstantBool<Self> {
         let q = self ^ y;
-        (q | q.wrapping_neg()) >> (Self::SIZE - 1)
+        ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1))
     }
     #[inline]
-    fn const_gt(self, y: Self) -> Self {
+    fn const_gt(self, y: Self) -> ConstantBool<Self> {
         let z = y.wrapping_sub(self);
-        (z ^ ((self ^ y) & (self ^ z))) >> (Self::SIZE - 1)
+        ConstantBool((z ^ ((self ^ y) & (self ^ z))) >> (Self::SIZE - 1))
     }
     #[inline]
-    fn const_ge(self, y: Self) -> Self {
-        ConstantUnsignedPrimitives::not(y.const_gt(self))
+    fn const_ge(self, y: Self) -> ConstantBool<Self> {
+        y.const_gt(self).not()
     }
     #[inline]
-    fn const_lt(self, y: Self) -> Self {
+    fn const_lt(self, y: Self) -> ConstantBool<Self> {
         y.const_gt(self)
     }
     #[inline]
-    fn const_le(self, y: Self) -> Self {
-        ConstantUnsignedPrimitives::not(self.const_gt(y))
+    fn const_le(self, y: Self) -> ConstantBool<Self> {
+        self.const_gt(y).not()
     }
     #[inline]
     fn min(self, y: Self) -> Self {
@@ -85,7 +92,7 @@ impl ConstantUnsignedPrimitives for $T {
     }
 }
 )+ }}
-constant_unsigned! { u64, u32, u8, usize }
+constant_unsigned! { u64, u32 }
 impl ConstantSignedPrimitives for i64 {
     #[inline]
     fn not(self) -> Self {
