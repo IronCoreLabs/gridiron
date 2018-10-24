@@ -23,6 +23,8 @@ incremental = true
 [dev-dependencies]
 proptest = "0.8.7"
 rand = "~0.5"
+
+[bench-dependencies]
 criterion = "0.2"
 
 [features]
