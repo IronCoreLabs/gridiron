@@ -36,13 +36,14 @@ macro_rules! from_signed31 { ($classname: ident; $($T:ty),*) => { $(
 /// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(64*numlimbs*2)/prime)`.
 #[macro_export]
 macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => { pub mod $modname {
-    use $crate::digits::util::*;
-    use $crate::digits::signed::*;
-    use $crate::digits::unsigned::*;
+    // use $crate::digits::util::*;
+    // use $crate::digits::signed::*;
+    // use $crate::digits::unsigned::*;
     use $crate::digits::constant_time_primitives::*;
+    use $crate::digits::constant_bool::*;
     use std::cmp::Ordering;
     use std::fmt;
-    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
+    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Not, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
     use num_traits::{One, Zero, Inv, Pow};
     use std::convert::From;
     use std::option::Option;
@@ -111,7 +112,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
         #[inline]
         fn is_zero(&self) -> bool {
-            self.limbs.iter().all(|limb| limb == &0u32)
+            self.limbs.const_eq0().0 == 1
         }
     }
 
@@ -125,7 +126,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
         #[inline]
         fn is_one(&self) -> bool {
-            self.limbs[0] == 1u32 && self.limbs.iter().skip(1).all(|limb| limb == &0u32)
+            self.limbs.const_eq(Self::one().limbs).0 == 1
         }
     }
 
@@ -142,8 +143,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         #[inline]
         fn add_assign(&mut self, other: $classname) {
             let a = &mut self.limbs;
-            let mut ctl = $classname::add_limbs(a, other.limbs, 1);
-            ctl |= $classname::sub_assign_limbs_if(a, PRIME, 0).not();
+            let mut ctl = $classname::add_assign_limbs_if(a, other.limbs, ConstantBool(1));
+            ctl |= $classname::sub_assign_limbs_if(a, PRIME, ConstantBool(0)).not();
             $classname::sub_assign_limbs_if(a, PRIME, ctl);
         }
     }
@@ -161,8 +162,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         #[inline]
         fn sub_assign(&mut self, other: $classname) {
             let a = &mut self.limbs;
-            let needs_add = $classname::sub_assign_limbs_if(a, other.limbs, 1);
-            $classname::add_limbs(a, PRIME, needs_add);
+            let needs_add = $classname::sub_assign_limbs_if(a, other.limbs, ConstantBool(1));
+            $classname::add_assign_limbs_if(a, PRIME, needs_add);
         }
     }
 
@@ -277,43 +278,41 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let a = self.limbs;
             let b = rhs.limbs;
             let mut d = [0u32; NUMLIMBS]; // result
-            let mut dh = 0u32; // can be up to 2W
+            let mut dh = 0u64; // can be up to 2W
             for i in 0 .. NUMLIMBS {
                 // f←(d[0]+a[i]b[0])g mod W
                 // g is MONTM0INV, W is word size
                 // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
                 // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
                 let f: u32 = $classname::mul_31_lo(d[0] + $classname::mul_31_lo(a[i], b[0]), MONTM0INV);
+                // println!("i={:?} f=({:?}+{:?}*{:?})*{:?}={:?}", i, d[0], a[i], b[0], MONTM0INV, f);
                 let mut z: u64; // can be up to 2W^2
-                let mut r = 0u32; // can be up to 2W
+                let mut c = 0u64; // can be up to 2W
                 let ai = a[i];
+
                 for j in 0 .. NUMLIMBS {
                     // z ← d[j]+a[i]b[j]+fm[j]+c
-                    z = (ai as u64 * b[j] as u64) + (d[j] as u64) + (f as u64 * PRIME[j] as u64) + (r as u64);
-                    r = (z >> 31) as u32;
+                    z = (ai as u64 * b[j] as u64) + (d[j] as u64) + (f as u64 * PRIME[j] as u64) + c;
+                    // c ← ⌊z/W⌋
+                    c = z >> 31;
                     // If j>0, set: d[j−1] ← z mod W
                     if j > 0 {
-                        d[j-1] = (z as u32) & 0x7FFFFFFF;
+                        d[j-1] = (z & 0x7FFFFFFF) as u32;
                     }
                 }
                 // z ← dh+c
-                z = (dh + r) as u64;
+                z = dh + c;
                 // d[N−1] ← z mod W
-                d[NUMLIMBS - 1] = (z as u32) & 0x7FFFFFFF;
+                d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
                 // dh ← ⌊z/W⌋
-                dh = (z >> 31) as u32;
+                dh = z >> 31;
             }
 
             // if dh≠0 or d≥m, set: d←d−m
-            //  br_i31_sub(d, m, NEQ(dh, 0) | NOT(br_i31_sub(d, m, 0)));
-            // if dh != 0u64 || d.greater_or_equal(&Fp256_32::PRIME) {
-            //     d.sub_assign(&Fp256_32::PRIME);
-            // } else{
-            //     d.sub_assign(&[0u64; 9]);
-            // }
-            let greater_than_prime = $classname::sub_assign_limbs_if(&mut d,PRIME,0).not();
-            //COLT: == 0 should be const time equality.
-            $classname::sub_assign_limbs_if(&mut d,PRIME, (dh == 0) as u32 | greater_than_prime);
+            println!("answer before normalizing: {:?}", d);
+            let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
+            $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
+            println!("answer aftter normalizing: {:?}", d);
             Monty { limbs: d }
         }
     }
@@ -392,8 +391,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         /// options, which use barrett.
         #[inline]
         pub fn normalize_little_limbs(mut limbs:[u32; NUMLIMBS]) -> [u32; NUMLIMBS] {
-            let needs_sub = $classname::sub_assign_limbs_if(&mut limbs, PRIME, 0);
-            $classname::sub_assign_limbs_if(&mut limbs, PRIME, needs_sub);
+            let doit = limbs.const_gt(PRIME);
+            $classname::sub_assign_limbs_if(&mut limbs, PRIME, doit);
             limbs
         }
 
@@ -510,7 +509,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
 
     #[inline]
-    fn add_limbs(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
+    fn add_assign_limbs_if(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: ConstantBool<u32>) -> ConstantBool<u32> {
         let mut cc = 0u32;
         for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
             let aw = *aa;
@@ -519,11 +518,11 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             cc = naw >> 31;
             *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
         }
-        cc
+        ConstantBool(cc)
     }
 
     #[inline]
-    fn sub_assign_limbs_if(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: u32) -> u32 {
+    fn sub_assign_limbs_if(a: &mut [u32; NUMLIMBS], b: [u32; NUMLIMBS], ctl: ConstantBool<u32>) -> ConstantBool<u32> {
         let mut cc = 0u32;
         for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
             let aw = *aa;
@@ -532,7 +531,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             cc = naw >> 31;
             *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
         }
-        cc
+        ConstantBool(cc)
     }
 
     #[inline]

@@ -3,7 +3,7 @@ use std::convert::From;
 use std::mem::size_of;
 use std::num::Wrapping;
 use std::ops::{Add, AddAssign, Mul, Rem, Shr, ShrAssign, Sub, SubAssign};
-use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
+use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Neg, Not};
 
 /*
  * Contents of this file heavily borrowed from or influenced by BearSSL by Thomas Pornin
@@ -60,6 +60,14 @@ impl<T: NumOps + Copy + BitOr<Output = T>> BitOr for ConstantBool<T> {
         ConstantBool(self.0 | rhs.0)
     }
 }
+
+impl<T: NumOps + Copy + BitOr<Output = T>> BitOrAssign for ConstantBool<T> {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs;
+    }
+}
+
 //Neg<Output = Wrapping<T>>
 impl<T> ConstantBool<T>
 where
@@ -80,7 +88,7 @@ where
         y ^ (Wrapping(self.0).neg().0 & (x ^ y))
     }
     #[inline]
-    fn is_zero(i: T) -> Self {
+    pub fn is_zero(i: T) -> Self {
         // let q = i as u64;
         // let q = u64::from(i);
         let q = Wrapping(i);
@@ -88,7 +96,7 @@ where
         ConstantBool((q | q.neg()).0 >> shift_amount).not()
     }
     #[inline]
-    fn not_zero(i: T) -> Self {
+    pub fn not_zero(i: T) -> Self {
         ConstantBool(Self::is_zero(i).0 ^ <T>::one())
     }
 }

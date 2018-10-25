@@ -164,6 +164,8 @@ impl ConstantSignedPrimitives for i64 {
 pub trait ConstantUnsignedArray31 {
     fn const_not(self) -> Self;
     fn const_eq(self, y: Self) -> ConstantBool<u32>;
+    fn const_eq0(self) -> ConstantBool<u32>;
+    fn const_neq0(self) -> ConstantBool<u32>;
     fn const_neq(self, y: Self) -> ConstantBool<u32>;
     fn const_gt(self, y: Self) -> ConstantBool<u32>;
     fn const_ge(self, y: Self) -> ConstantBool<u32>;
@@ -182,6 +184,18 @@ impl ConstantUnsignedArray31 for [u32; $N] {
     #[inline]
     fn const_eq(self, y: Self) -> ConstantBool<u32> {
         self.const_neq(y).not()
+    }
+
+    #[inline]
+    fn const_eq0(self) -> ConstantBool<u32> {
+        let mut accum = 0u32;
+        self.iter().for_each(|l| { accum |= *l });
+        ConstantBool::is_zero(accum)
+    }
+
+    #[inline]
+    fn const_neq0(self) -> ConstantBool<u32> {
+        self.const_eq0().not()
     }
 
     #[inline]
