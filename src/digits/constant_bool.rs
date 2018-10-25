@@ -99,4 +99,8 @@ where
     pub fn not_zero(i: T) -> Self {
         ConstantBool(Self::is_zero(i).0 ^ <T>::one())
     }
+
+    pub fn new_true() -> Self {
+        ConstantBool(<T>::one())
+    }
 }
