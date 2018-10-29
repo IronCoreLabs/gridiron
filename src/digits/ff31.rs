@@ -735,14 +735,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         let mut foo = PRIME;
         $classname::sub_assign_limbs_if(&mut foo, *a, ctl);
         *a = $classname::normalize_little_limbs(foo);
-        // let mut cc = ctl;
-        // let xm = ctl.wrapping_neg() >> 1;
-        // for mut ai in a.iter_mut() {
-        //     let mut aw = *ai;
-        //     aw = (aw ^ xm) + cc;
-        //     *ai = aw & 0x7FFFFFFF;
-        //     cc = aw >> 31;
-        // }
     }
 }
 
@@ -784,8 +776,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             fn identity(a in arb_fp()) {
                 // prop_assert_eq!(a * 1, a);
 
-                // prop_assert_eq!(a * $classname::one(), a);
-                // prop_assert_eq!($classname::one() * a, a);
+                prop_assert_eq!(a * $classname::one(), a);
+                prop_assert_eq!($classname::one() * a, a);
 
                 prop_assert_eq!(a + $classname::zero(), a);
                 prop_assert_eq!($classname::zero() + a, a);
@@ -905,25 +897,38 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            fn mont_times_normal_equals_normal(a in arb_fp(), b in arb_fp()) {
+            fn monty_times_normal_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, a.to_monty()* b);
             }
 
             #[test]
-            fn normal_times_mont_equals_normal(a in arb_fp(), b in arb_fp()) {
+            fn normal_times_monty_equals_normal(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a * b, a * b.to_monty());
             }
 
             #[test]
-            fn mont_add_works(a in arb_fp(), b in arb_fp()) {
+            fn monty_add_works(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a + b, (a.to_monty() + b.to_monty()).to_norm())
             }
 
             #[test]
-            fn mont_sub_works(a in arb_fp(), b in arb_fp()) {
+            fn monty_sub_works(a in arb_fp(), b in arb_fp()) {
                 prop_assert_eq!(a - b, (a.to_monty() - b.to_monty()).to_norm())
             }
 
+            #[test]
+            fn monty_add_assign_works(a in arb_fp(), b in arb_fp()) {
+                let mut aa = a.to_monty();
+                aa += b.to_monty();
+                prop_assert_eq!(a + b, aa.to_norm())
+            }
+
+            #[test]
+            fn monty_sub_assign_works(a in arb_fp(), b in arb_fp()) {
+                let mut aa = a.to_monty();
+                aa -= b.to_monty();
+                prop_assert_eq!(a - b, aa.to_norm())
+            }
         }
     }
 }};}
