@@ -171,6 +171,7 @@ pub trait ConstantUnsignedArray31 {
     fn const_ge(self, y: Self) -> ConstantBool<u32>;
     fn const_lt(self, y: Self) -> ConstantBool<u32>;
     fn const_le(self, y: Self) -> ConstantBool<u32>;
+    fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u32>);
 }
 macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
 /// Must have maximum of 31-bits used per limb
@@ -229,6 +230,13 @@ impl ConstantUnsignedArray31 for [u32; $N] {
     #[inline]
     fn const_ge(self, y: Self) -> ConstantBool<u32> {
         self.const_lt(y).not()
+    }
+
+    #[inline]
+    fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u32>) {
+        for (s, d) in src.iter().zip(self.iter_mut()) {
+            *d = ctl.mux(*s, *d);
+        }
     }
 }
 )+ }}
