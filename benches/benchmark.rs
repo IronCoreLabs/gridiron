@@ -6,6 +6,7 @@ extern crate rand;
 
 use criterion::{black_box, Criterion};
 use gridiron::fp_256;
+use gridiron::fp_480;
 use num_traits::{Inv, Pow};
 use rand::{RngCore, ThreadRng};
 use std::ops::Neg;
@@ -33,6 +34,23 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     fn gen_rand_fp256(rng: &mut ThreadRng) -> fp_256::Fp256 {
         (gen_rand_fp256_raw(rng)).normalize(0)
+    }
+
+    fn gen_rand_480_limbs(rng: &mut ThreadRng) -> [u64; fp_480::NUMLIMBS] {
+        let mut limbs = [0u64; fp_480::NUMLIMBS];
+        for limb in limbs.iter_mut() {
+            *limb = rng.next_u64();
+        }
+        limbs[fp_480::NUMLIMBS - 1] &= 0xFFFFFFFF;
+        limbs
+    }
+
+    fn gen_rand_fp480_raw(rng: &mut ThreadRng) -> fp_480::Fp480 {
+        fp_480::Fp480::new(gen_rand_480_limbs(rng))
+    }
+
+    fn gen_rand_fp480(rng: &mut ThreadRng) -> fp_480::Fp480 {
+        (gen_rand_fp480_raw(rng)).normalize(0)
     }
 
     c.bench_function("Fp256 - normalize (256 bits to Fp256 100 times)", |bench| {
@@ -261,6 +279,84 @@ fn criterion_benchmark(c: &mut Criterion) {
                     for _ in 0..100 {
                         let byte_array = a.to_bytes_array();
                         fp_256::Fp256::from(byte_array);
+                    }
+                },
+            );
+        },
+    );
+
+    c.bench_function("Fp480 - normalize (480 bits to Fp480 100 times)", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || gen_rand_fp480_raw(&mut rng),
+            |val_to_norm| {
+                for _ in 0..100 {
+                    black_box(val_to_norm.normalize(0));
+                }
+            },
+        );
+    });
+
+    c.bench_function(
+        "Fp480 - add_assign (add an Fp480 into another Fp480 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp480(&mut rng), gen_rand_fp480(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a += b;
+                    }
+                },
+            );
+        },
+    );
+
+    c.bench_function(
+        "Fp480 - sub_assign (subtract an Fp480 from another Fp480 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp480(&mut rng), gen_rand_fp480(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a -= b;
+                    }
+                },
+            );
+        },
+    );
+
+    c.bench_function(
+        "Fp480 - mul_assign (an Fp480 into another Fp480 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || (gen_rand_fp480(&mut rng), gen_rand_fp480(&mut rng)),
+                |(mut a, b)| {
+                    for _ in 0..100 {
+                        a *= b;
+                    }
+                },
+            );
+        },
+    );
+
+    c.bench_function("Fp480 - inv (invert an Fp480)", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(|| gen_rand_fp480(&mut rng), |a| a.inv());
+    });
+
+    c.bench_function(
+        "Fp480 - from, to_bytes_array (roundtrip to and from byte array 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp480(&mut rng),
+                |a| {
+                    for _ in 0..100 {
+                        let byte_array = a.to_bytes_array();
+                        fp_480::Fp480::from(byte_array);
                     }
                 },
             );
