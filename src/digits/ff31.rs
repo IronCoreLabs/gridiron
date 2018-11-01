@@ -565,7 +565,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                             len -= 1;
                         }
 
-                        if len == 2{
+                        if len == 2 {
                             output[current_output_index - len] = (z >> 8) as u8;
                             len -= 1;
                         }
@@ -957,20 +957,9 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            #[ignore]
             fn from_bytes_roundtrip(a in arb_fp()) {
                 let bytes = a.to_bytes_array();
                 prop_assert_eq!($classname::from(bytes), a);
-            }
-
-            #[test]
-            #[ignore]
-            fn from_signed_ints(a in any::<i32>()) {
-                if a < 0 {
-                    prop_assert_eq!($classname::from(a), $classname { limbs: PRIME } - $classname::new_from_u32(a.abs() as u32));
-                } else {
-                    prop_assert_eq!($classname::from(a), $classname::new_from_u32(a as u32));
-                }
             }
 
             #[test]
