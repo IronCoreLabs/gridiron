@@ -309,7 +309,19 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     /// Assume element zero is most sig
     impl From<[u8; PRIMEBYTES]> for $classname {
         fn from(src: [u8; PRIMEBYTES]) -> Self {
-            unimplemented!();
+            // let mod_actual_byte_len = {
+            //     //COLT: We need some comments here. 
+            //     let m_rbitlen = (PRIMEBITS & 31) + (8 << 5) - 8;
+            //     (m_rbitlen + 7) >> 3
+            // };
+            let limbs_before_normal = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
+            //This could be better. We could do something similaro to what BearSSL does 
+            //in https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/int/i31_decred.c;h=43db6624c8e4d57749c32177aed899f196e21443;hb=8ef7680081c61b486622f2d983c0d3d21e83caad
+            //which will likely be more efficient.
+            let mut barrett_input = [0u32; NUMDOUBLELIMBS];
+            barrett_input[..NUMLIMBS].copy_from_slice(&limbs_before_normal[..]);
+            let limbs = $classname::reduce_barrett(&barrett_input);
+            $classname::new(limbs)
         }
     }
 
@@ -516,9 +528,56 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             unimplemented!();
         }
 
+        fn u32_to_bytes_big_endian(x: u32, buf: &mut[u8]){
+            buf[0] = (x >> 24) as u8;
+            buf[1] = (x >> 16) as u8;
+            buf[2] = (x >> 8) as u8;
+            buf[3] = x as u8;
+        }
+
         ///Convert the value to a byte array which is `PRIMEBYTES` long.
         pub fn to_bytes_array(&self) -> [u8; PRIMEBYTES] {
-            unimplemented!();
+            let mut k:usize = 0;
+            let mut acc = 0u32;
+            // How many bits have we accumulated.
+            let mut acc_len = 0u32;
+            // How many bytes are left.
+            let mut len = PRIMEBYTES;
+            let mut output: [u8;PRIMEBYTES] = [0u8; PRIMEBYTES];
+            let mut current_output_index = len;
+            while len != 0 {
+                let current_limb = self.limbs[k];
+                k += 1;
+                if acc_len == 0{
+                    acc = current_limb;
+                    acc_len = 31;
+                } else{
+                    let z = acc | (current_limb << acc_len);
+                    acc_len -= 1;
+                    acc = current_limb >> (31 - acc_len);
+                    if len >= 4 { //Pull off 4 bytes and put them into the output buffer.
+                        current_output_index -= 4;
+                        len -= 4;
+                        $classname::u32_to_bytes_big_endian(z, &mut output[current_output_index..(current_output_index + 4)])
+                    } else { //If we have less than 4 bytes left, manually pull off all 3 in succession.
+                        if len == 3 {
+                            output[current_output_index - len] = (z >> 16) as u8;
+                            len -= 1;
+                        }
+
+                        if len == 2{
+                            output[current_output_index - len] = (z >> 8) as u8;
+                            len -= 1;
+                        }
+
+                        if len == 1 {
+                            output[current_output_index - len] = z as u8;
+                        }
+                        break;
+                    }
+                }
+            }
+            output
         }
 
         ///Create a new instance given the raw limbs form. Note that this is least significant bit first.
@@ -684,6 +743,34 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         Self::sub_assign_limbs_if(&mut r, PRIME, dosub);
 
         r
+    }
+
+    ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
+    ///len bytes to 
+    #[inline]
+    fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS]{
+        let mut limbs = [0u32; NUMLIMBS];
+        let mut acc = 0u32;
+        let mut acc_len = 0i32;
+        let mut v = 0;
+        for b in src.iter().rev().take(len){
+            let b_u32 = *b as u32;
+            acc |= b_u32 << acc_len;
+            acc_len += 8;
+            if acc_len >= 31 {
+                limbs[v] = acc & 0x7FFFFFFFu32;
+                v += 1;
+                acc_len -= 31;
+                //Note that because we're adding 8 each time through the loop
+                //and check that acc_len >= 31 that 8 - acc_len can _never_ be negative.
+                acc = b_u32 >> (8- acc_len);
+            }
+        }
+        if acc_len != 0{
+            limbs[v] = acc;
+            // v += 1
+        }
+        limbs
     }
 
     #[inline]

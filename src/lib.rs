@@ -380,9 +380,42 @@ mod lib {
         ]);
         let mut foo = fp31_256::PRIME;
         foo[0] -= 1;
+        let arr = [143,
+ 181,
+ 1,
+ 227,
+ 74,
+ 163,
+ 135,
+ 249,
+ 170,
+ 111,
+ 236,
+ 184,
+ 97,
+ 132,
+ 220,
+ 33,
+ 238,
+ 91,
+ 136,
+ 209,
+ 32,
+ 181,
+ 181,
+ 158,
+ 24,
+ 92,
+ 172,
+ 108,
+ 94,
+ 8,
+ 150,
+ 102];
+ let f: fp31_256::Fp256 = arr.into();
         assert_eq!(
-            fp31_256::Fp256::zero() + -fp31_256::Fp256::one(),
-            fp31_256::Fp256::new(foo)
+            fp31_256::Fp256::new(foo),
+            f
         );
     }
 
@@ -1026,17 +1059,28 @@ mod lib {
     //     assert_eq!(bytes, expected_result);
     // }
 
-    // #[test]
-    // fn fp256_from_bytes_should_mod() {
-    //     use fp_256::Fp256;
-    //     let max_bytes = Fp256::from([255u8; 32]);
-    //     let result = max_bytes.to_bytes_array();
-    //     assert_eq!(
-    //         result,
-    //         [
-    //             112, 74, 254, 28, 181, 92, 120, 6, 85, 144, 19, 71, 158, 123, 35, 222, 17, 164,
-    //             119, 46, 223, 74, 74, 97, 231, 163, 83, 147, 161, 247, 105, 152
-    //         ]
-    //     );
-    // }
+    #[test]
+    fn fp256_from_bytes_should_mod() {
+        use fp31_256::Fp256;
+        let max_bytes = Fp256::from([255u8; 32]);
+        let expected_result = Fp256::new(
+            [569862552,
+             1330030375,
+             2099849607,
+             220445046,
+             1739734497,
+             839018739,
+             1461584277,
+             629083738,
+             112]);
+        assert_eq!(max_bytes, expected_result);
+        let to_bytes_result = max_bytes.to_bytes_array();
+        assert_eq!(
+            to_bytes_result,
+            [
+                112, 74, 254, 28, 181, 92, 120, 6, 85, 144, 19, 71, 158, 123, 35, 222, 17, 164,
+                119, 46, 223, 74, 74, 97, 231, 163, 83, 147, 161, 247, 105, 152
+            ]
+        );
+    }
 }
