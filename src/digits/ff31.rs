@@ -9,24 +9,6 @@ macro_rules! from_unsigned31 { ($classname: ident; $($T:ty),*) => { $(
     }
 )+ }}
 
-#[macro_export]
-macro_rules! from_signed31 { ($classname: ident; $($T:ty),*) => { $(
-    impl From<$T> for $classname {
-        // TODO: not constant time
-        fn from(other: $T) -> $classname {
-            unimplemented!();
-            // let mut ret = $classname::zero();
-            // if other < 0 {
-            //   ret.limbs[0] = (other * -1) as u32;
-            //   $classname { limbs: PRIME.sub_ignore_carry(&ret.limbs) }
-            // } else{
-            //   ret.limbs[0] = other as u32;
-            //   ret
-            // }
-        }
-    }
-)+ }}
-
 /// Create an Fp type given the following parameters:
 /// - modname - the name of the module you want the Fp type in.
 /// - classname - the name of the Fp struct
@@ -297,27 +279,21 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         type Output = $classname;
         #[inline]
         fn neg(mut self) -> $classname {
-            $classname::cond_negate(&mut self.limbs, ConstantBool::new_true());
+            $classname::cond_negate_mod_prime(&mut self.limbs, ConstantBool::new_true());
             self
         }
     }
 
-
     from_unsigned31! { $classname; u32, u8 }
-    from_signed31! { $classname; i32, i8 }
 
     /// Assume element zero is most sig
     impl From<[u8; PRIMEBYTES]> for $classname {
         fn from(src: [u8; PRIMEBYTES]) -> Self {
-            // let mod_actual_byte_len = {
-            //     //COLT: We need some comments here. 
-            //     let m_rbitlen = (PRIMEBITS & 31) + (8 << 5) - 8;
-            //     (m_rbitlen + 7) >> 3
-            // };
             let limbs_before_normal = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
-            //This could be better. We could do something similaro to what BearSSL does 
+            //This could be better. We could do something similar to what BearSSL does 
             //in https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/int/i31_decred.c;h=43db6624c8e4d57749c32177aed899f196e21443;hb=8ef7680081c61b486622f2d983c0d3d21e83caad
             //which will likely be more efficient.
+            //COLT: call normalize_assign_big.
             let mut barrett_input = [0u32; NUMDOUBLELIMBS];
             barrett_input[..NUMLIMBS].copy_from_slice(&limbs_before_normal[..]);
             let limbs = $classname::reduce_barrett(&barrett_input);
@@ -489,6 +465,16 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
 
     impl $classname {
+
+        ///Square the value. Same as a value times itself, but slightly more performant.
+        #[inline]
+        pub fn square(&self) -> $classname {
+            let doublesize = $classname::mul_limbs_classic(&self.limbs, &self.limbs);
+            $classname {
+                limbs: $classname::reduce_barrett(&doublesize),
+            }
+        }
+        #[inline]
         pub fn to_monty(self) -> Monty {
             Monty{limbs:self.limbs} * Monty{limbs:MONTRSQUARED}
         }
@@ -525,9 +511,15 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
         #[inline]
         pub fn normalize_assign_big(&mut self, extra_limb: u32) {
-            unimplemented!();
+            let mut ret = [0u32; NUMLIMBS*2];
+            for (dst, src) in ret.iter_mut().zip(self.limbs.iter()) {
+                *dst = *src;
+            }
+            ret[NUMLIMBS] = extra_limb;
+            self.limbs = $classname::reduce_barrett(&ret);
         }
 
+        #[inline]
         fn u32_to_bytes_big_endian(x: u32, buf: &mut[u8]){
             buf[0] = (x >> 24) as u8;
             buf[1] = (x >> 16) as u8;
@@ -536,6 +528,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         }
 
         ///Convert the value to a byte array which is `PRIMEBYTES` long.
+        #[inline]
         pub fn to_bytes_array(&self) -> [u8; PRIMEBYTES] {
             let mut k:usize = 0;
             let mut acc = 0u32;
@@ -746,7 +739,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
 
     ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
-    ///len bytes to 
+    ///len bytes and split them into 31 bit limbs.
     #[inline]
     fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS]{
         let mut limbs = [0u32; NUMLIMBS];
@@ -818,10 +811,21 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         (x as u64 * y as u64) as u32 & 0x7FFFFFFFu32
     }
 
-    fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
+    fn cond_negate_mod_prime(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
         let mut foo = PRIME;
         $classname::sub_assign_limbs_if(&mut foo, *a, ctl);
         *a = $classname::normalize_little_limbs(foo);
+    }
+
+    fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: u32) {
+        let mut cc = ctl;
+        let xm = ctl.wrapping_neg() >> 1;
+        for mut ai in a.iter_mut() {
+            let mut aw = *ai;
+            aw = (aw ^ xm) + cc;
+            *ai = aw & 0x7FFFFFFF;
+            cc = aw >> 31;
+        }
     }
 }
 
