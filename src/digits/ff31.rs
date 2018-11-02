@@ -289,14 +289,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     /// Assume element zero is most sig
     impl From<[u8; PRIMEBYTES]> for $classname {
         fn from(src: [u8; PRIMEBYTES]) -> Self {
-            let limbs_before_normal = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
-            //This could be better. We could do something similar to what BearSSL does 
-            //in https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/int/i31_decred.c;h=43db6624c8e4d57749c32177aed899f196e21443;hb=8ef7680081c61b486622f2d983c0d3d21e83caad
-            //which will likely be more efficient.
-            //COLT: call normalize_assign_big.
-            let mut barrett_input = [0u32; NUMDOUBLELIMBS];
-            barrett_input[..NUMLIMBS].copy_from_slice(&limbs_before_normal[..]);
-            let limbs = $classname::reduce_barrett(&barrett_input);
+            let limbs = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
+            $classname::normalize_little_limbs(limbs);
             $classname::new(limbs)
         }
     }
