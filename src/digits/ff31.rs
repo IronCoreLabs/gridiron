@@ -289,8 +289,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     /// Assume element zero is most sig
     impl From<[u8; PRIMEBYTES]> for $classname {
         fn from(src: [u8; PRIMEBYTES]) -> Self {
-            let limbs = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
-            $classname::normalize_little_limbs(limbs);
+            let limbs_not_modded = $classname::convert_bytes_to_limbs(src, PRIMEBYTES);
+            let limbs = $classname::normalize_little_limbs(limbs_not_modded);
             $classname::new(limbs)
         }
     }

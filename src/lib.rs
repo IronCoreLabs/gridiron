@@ -7,129 +7,16 @@ extern crate proptest;
 
 #[macro_use]
 pub mod digits {
-    pub mod signed;
-    pub mod unsigned;
-    // #[macro_use]
-    // pub mod ff;
     #[macro_use]
     pub mod ff31;
     pub(crate) mod constant_bool;
     pub(crate) mod constant_time_primitives;
-    pub mod util;
 }
-
-const BITSPERBYTE: usize = 8;
-const U64BYTES: usize = 8;
-
-// p = 3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023
-//   = 0xfffc6664 0e249d9ec75ad529 0b81a85d415797b9 31258da0d78b58a2 1c435cddb02e0add 635a037371d1e9a4 0a5ec1d6ed637bd3 695530683ee96497
-// fp!(
-//     fp_480, // Name of mod
-//     Fp480,  // Name of class
-//     480,    // Number of bits for prime
-//     8,      // Number of limbs (ceil(bits/64))
-//     [
-//         // prime number in limbs, least sig first
-//         // get this from sage with p.digits(2^64)
-//         0x695530683ee96497,
-//         0x0a5ec1d6ed637bd3,
-//         0x635a037371d1e9a4,
-//         0x1c435cddb02e0add,
-//         0x31258da0d78b58a2,
-//         0x0b81a85d415797b9,
-//         0x0e249d9ec75ad529,
-//         0xfffc6664
-//     ],
-//     // barrett reduction for reducing values up to twice
-//     // the number of prime bits (double limbs):
-//     // floor(2^(64*numlimbs*2)/p)
-//     [
-//         12949131531391198536,
-//         16219634423243107790,
-//         3078644475342494540,
-//         14339002018868860281,
-//         10620351872007386094,
-//         16410052731186111519,
-//         4427379449636958391,
-//         16707647147458534671,
-//         4295203240,
-//     ],
-//     // montgomery R = 2^512
-//     // montgomery R^-1 mod p
-//     // 540164672828597150601552066704871144340865164390233716165828766698348036766646674962138582407269471436938515957052715279568068096452253665449178
-//     [
-//         18422969111082685658,
-//         5698376139792575429,
-//         4837330201370594636,
-//         16397744014264643964,
-//         15312765232057390480,
-//         7140422894594924896,
-//         15277426844049548921,
-//         743169914
-//     ],
-//     // montgomery R^2 mod p
-//     // 457845372202231092221045514406304715517609899600516288088351276206864288839367561156406646278891945147846188034105187428603489846554823930520200
-//     [
-//         7115419463539335816,
-//         15138695292168145619,
-//         10504186436088797678,
-//         7089633300682849437,
-//         6453243128360402816,
-//         13972962101250589797,
-//         2075590335192999167,
-//         629913290
-//     ],
-//     // -p[0]^-1
-//     4431181839393072345
-// );
-
-// // p = 65000549695646603732796438742359905742825358107623003571877145026864184071783
-// fp!(
-//     fp_256, // Name of mod
-//     Fp256,  // Name of class
-//     256,    // Number of bits for prime
-//     4,      // Number of limbs (ceil(bits/64))
-//     [
-//         1755467536201717351,  // prime number in limbs, least sig first
-//         17175472035685840286, // get this from sage with p.digits(2^64)
-//         12281294985516866593,
-//         10355184993929758713
-//     ],
-//     // barrett reduction for reducing values up to twice
-//     // the number of prime bits (double limbs):
-//     // floor(2^(64*numlimbs*2)/p)
-//     [
-//         4057416362780367814,
-//         12897237271039966353,
-//         2174143271902072370,
-//         14414317039193118239,
-//         1
-//     ],
-//     // montgomery R = 2^256
-//     // montgomery R^-1 mod p
-//     // 14371096341923360991777622009724443381605089814088122291496583894632133693821
-//     [
-//         14679344324042690941,
-//         920527884320819483,
-//         3362896482480026901,
-//         2289447733642328101
-//     ],
-//     // montgomery R^2 mod p
-//     // 56183755162440825278402343989826228114881341512867538765087816584313329438550
-//     [
-//         11250488846250692438,
-//         4656389213572280514,
-//         895586836128929361,
-//         8950588588633063607
-//     ],
-//     // -p[0]^-1
-//     2560288693711002281
-// );
 
 // p = 3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023
 //   =
 fp31!(
-    fp31_480, // Name of mod
+    fp_480, // Name of mod
     Fp480,    // Name of class
     480,      // Number of bits for prime
     16,       // Number of limbs (ceil(bits/31))
@@ -170,7 +57,7 @@ fp31!(
 
 // p = 65000549695646603732796438742359905742825358107623003571877145026864184071783
 fp31!(
-    fp31_256, // Name of mod
+    fp_256, // Name of mod
     Fp256,    // Name of class
     256,      // Number of bits for prime
     9,        // Number of limbs (ceil(bits/31))
@@ -222,17 +109,17 @@ fp31!(
 //     }
 // }
 
-pub fn eight_limbs_from_sixtyfour_bytes(bytes: [u8; 64]) -> [u64; 8] {
-    let mut limbs = [0u64; 8];
-    for (i, limb) in limbs.iter_mut().enumerate() {
-        for j in (0..U64BYTES).rev() {
-            let idx = i * U64BYTES + j;
-            *limb <<= BITSPERBYTE;
-            *limb |= bytes[64 - idx - 1] as u64;
-        }
-    }
-    limbs
-}
+// pub fn eight_limbs_from_sixtyfour_bytes(bytes: [u8; 64]) -> [u64; 8] {
+//     let mut limbs = [0u64; 8];
+//     for (i, limb) in limbs.iter_mut().enumerate() {
+//         for j in (0..U64BYTES).rev() {
+//             let idx = i * U64BYTES + j;
+//             *limb <<= BITSPERBYTE;
+//             *limb |= bytes[64 - idx - 1] as u64;
+//         }
+//     }
+//     limbs
+// }
 
 #[cfg(test)]
 mod lib {
@@ -335,10 +222,10 @@ mod lib {
     #[test]
     fn mont_mult1() {
         // 95268205315236501484672006935066056413858283446892086784168052156537964209835102730449048569806878637400128131440203902086374553015554146305
-        let a = fp31_480::Fp480::new([1u32; fp31_480::NUMLIMBS]);
+        let a = fp_480::Fp480::new([1u32; fp_480::NUMLIMBS]);
         // a * a % fp_480::PRIME =
         // 205669314559023345249322393444938088201822776871146042137485986789672375071531284450979897790335457986807231101745728970499097028834583423134417
-        let expected = fp31_480::Fp480::new([
+        let expected = fp_480::Fp480::new([
             116566737, 258320304, 899113910, 662693571, 1878328939, 137325967, 973027057,
             1096098811, 1800707178, 257433595, 567863213, 586185298, 1453955551, 666215613,
             1815208656, 2158,
@@ -349,9 +236,9 @@ mod lib {
     #[test]
     fn mont_mult2() {
         // 452312848793890971808518248247112008541969316111895757139568199407784427521
-        let a = fp31_256::Fp256::new([1u32; fp31_256::NUMLIMBS]);
+        let a = fp_256::Fp256::new([1u32; fp_256::NUMLIMBS]);
         // a * R % fp_256::PRIME = 27935760211609813813226455184238240888269395514922035446130060411072102193610
-        let expected = fp31_256::Fp256::new([
+        let expected = fp_256::Fp256::new([
             1001314762, 222542809, 1966841077, 1532144542, 1509311353, 1324885496, 689426205,
             1636449281, 61,
         ]);
@@ -361,67 +248,21 @@ mod lib {
     #[test]
     fn static_add_31_bit() {
         //41389210591178563197866013531977652355280622370776165812970320099896695112225
-        let expected = fp31_256::Fp256::new([
+        let expected = fp_256::Fp256::new([
             1687077409, 1547669063, 1685320481, 1036948901, 4206667, 1832642533, 59073627,
             1086014588, 91,
         ]);
         //53194880143412583465331226137168779049052990239199584692423732563380439592004
-        let a = fp31_256::Fp256::new([
+        let a = fp_256::Fp256::new([
             558607428, 108819344, 866477261, 408251927, 1279719733, 496811896, 1446228323,
             1302207248, 117,
         ]);
         assert_eq!(a + a, expected);
     }
-    #[test]
-    fn colt_31_bit() {
-        let a = fp31_256::Fp256::new([
-            558607428, 108819344, 866477261, 408251927, 1279719733, 496811896, 1446228323,
-            1302207248, 117,
-        ]);
-        let mut foo = fp31_256::PRIME;
-        foo[0] -= 1;
-        let arr = [143,
- 181,
- 1,
- 227,
- 74,
- 163,
- 135,
- 249,
- 170,
- 111,
- 236,
- 184,
- 97,
- 132,
- 220,
- 33,
- 238,
- 91,
- 136,
- 209,
- 32,
- 181,
- 181,
- 158,
- 24,
- 92,
- 172,
- 108,
- 94,
- 8,
- 150,
- 102];
- let f: fp31_256::Fp256 = arr.into();
-        assert_eq!(
-            fp31_256::Fp256::new(foo),
-            f
-        );
-    }
 
     #[test]
     fn fp_256_31_normalize_prime_minus_1() {
-        let a = fp31_256::Fp256::new([
+        let a = fp_256::Fp256::new([
             1577621094, 817453272, 47634040, 1927038601, 407749150, 1308464908, 685899370,
             1518399909, 143,
         ]);
@@ -452,20 +293,6 @@ mod lib {
     //         fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
     //         "50339226693086325302401222106137814970392790680417402014301307793518034905497"
     //     );
-    // }
-
-    // #[test]
-    // fn to_bytes() {
-    //     let x = fp_256::Fp256::new([0, 0xeeff, 0, 0]);
-    //     let mut expected_bytes = [0u8; 32];
-    //     expected_bytes[22] = 0xeeu8;
-    //     expected_bytes[23] = 0xffu8;
-    //     assert_eq!(x.to_bytes_array(), expected_bytes);
-
-    //     let x = fp_256::Fp256::new([0, 0, 0, 0xff00000000000000]);
-    //     let mut expected_bytes = [0u8; 32];
-    //     expected_bytes[0] = 0xffu8;
-    //     assert_eq!(x.to_bytes_array(), expected_bytes);
     // }
 
     // #[test]
@@ -1046,22 +873,22 @@ mod lib {
     //     assert_eq!(fp_256::Fp256::from(x), expected);
     // }
 
-    // #[test]
-    // fn fp256_to_bytes_known_good_value() {
-    //     use fp_256::Fp256;
-    //     let fp = Fp256::from(255);
-    //     let bytes = fp.to_bytes_array();
-    //     let expected_result = {
-    //         let mut array = [0u8; 32];
-    //         array[31] = 255;
-    //         array
-    //     };
-    //     assert_eq!(bytes, expected_result);
-    // }
+    #[test]
+    fn fp256_to_bytes_known_good_value() {
+        use fp_256::Fp256;
+        let fp = Fp256::from(255u32);
+        let bytes = fp.to_bytes_array();
+        let expected_result = {
+            let mut array = [0u8; 32];
+            array[31] = 255;
+            array
+        };
+        assert_eq!(bytes, expected_result);
+    }
 
     #[test]
     fn fp256_from_bytes_should_mod() {
-        use fp31_256::Fp256;
+        use fp_256::Fp256;
         let max_bytes = Fp256::from([255u8; 32]);
         let expected_result = Fp256::new(
             [569862552,

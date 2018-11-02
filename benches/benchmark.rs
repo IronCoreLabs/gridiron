@@ -5,33 +5,33 @@ extern crate num_traits;
 extern crate rand;
 
 use criterion::{black_box, Criterion};
-use gridiron::fp31_256;
+use gridiron::fp_256;
 use num_traits::{Inv, Pow};
 use rand::{RngCore, ThreadRng};
 use std::ops::Neg;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    fn gen_rand_limbs(rng: &mut ThreadRng) -> [u32; fp31_256::NUMLIMBS] {
-        let mut limbs = [0u32; fp31_256::NUMLIMBS];
+    fn gen_rand_limbs(rng: &mut ThreadRng) -> [u32; fp_256::NUMLIMBS] {
+        let mut limbs = [0u32; fp_256::NUMLIMBS];
         for limb in limbs.iter_mut() {
             *limb = rng.next_u32();
         }
         limbs
     }
 
-    fn gen_rand_double_limbs(rng: &mut ThreadRng) -> [u32; 2 * fp31_256::NUMLIMBS] {
-        let mut limbs = [0u32; 2 * fp31_256::NUMLIMBS];
+    fn gen_rand_double_limbs(rng: &mut ThreadRng) -> [u32; 2 * fp_256::NUMLIMBS] {
+        let mut limbs = [0u32; 2 * fp_256::NUMLIMBS];
         for limb in limbs.iter_mut() {
             *limb = rng.next_u32();
         }
         limbs
     }
 
-    fn gen_rand_fp256_raw(rng: &mut ThreadRng) -> fp31_256::Fp256 {
-        fp31_256::Fp256::new(gen_rand_limbs(rng))
+    fn gen_rand_fp256_raw(rng: &mut ThreadRng) -> fp_256::Fp256 {
+        fp_256::Fp256::new(gen_rand_limbs(rng))
     }
 
-    fn gen_rand_fp256(rng: &mut ThreadRng) -> fp31_256::Fp256 {
+    fn gen_rand_fp256(rng: &mut ThreadRng) -> fp_256::Fp256 {
         (gen_rand_fp256_raw(rng)).normalize_big(0)
     }
 
@@ -58,7 +58,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 || gen_rand_double_limbs(&mut rng),
                 |val_to_norm| {
                     for _ in 0..100 {
-                        black_box(fp31_256::Fp256::reduce_barrett(&val_to_norm));
+                        black_box(fp_256::Fp256::reduce_barrett(&val_to_norm));
                     }
                 },
             );
@@ -205,7 +205,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 |a| {
                     for _ in 0..100 {
                         let byte_array = a.to_bytes_array();
-                        fp31_256::Fp256::from(byte_array);
+                        fp_256::Fp256::from(byte_array);
                     }
                 },
             );
