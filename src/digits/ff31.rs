@@ -860,8 +860,12 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         println!("qb={:?}", qb);
         println!("cca={:?}", cca);
         println!("ccb={:?}", ccb);
-            let za = (a[k] as u64) * (pa as u64) + (b[k] as u64) * (pb as u64) + (cca as u64);
-            let zb = (a[k] as u64) * (qa as u64) + (b[k] as u64) * (qb as u64) + (ccb as u64);
+        println!("wa_pa={:?}",(a[k] as u64) * (pa as u64) );
+        println!("wb_pb={:?}",(b[k] as u64).wrapping_mul(pb as u64) );
+            let za = (a[k] as u64).wrapping_mul(pa as u64).wrapping_add((b[k] as u64).wrapping_mul(pb as u64)).wrapping_add(cca as u64);
+            let zb = (a[k] as u64).wrapping_mul(qa as u64).wrapping_add((b[k] as u64).wrapping_mul(qb as u64)).wrapping_add(ccb as u64);
+            println!("za={:?}",za);
+        println!("zb={:?}",zb);
             if k > 0 {
                 a[k - 1] = za as u32 & 0x7FFFFFFF;
                 b[k - 1] = zb as u32 & 0x7FFFFFFF;
@@ -869,21 +873,27 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
             //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
             //and that's what we want here.
-            let foo = 1u64 << 32;
-            let tta = ((za >> 31) ^ foo) - foo;
-            let ttb = ((zb >> 31) ^ foo) - foo;
-            cca = tta as i64;
-            ccb = ttb as i64;
+            // let foo = 1u64 << 32;
+            // let tta = ((za >> 31) ^ foo).wrapping_sub(foo);
+            // let ttb = ((zb >> 31) ^ foo).wrapping_sub(foo);
+            // cca = tta as i64;
+            // ccb = ttb as i64;
+            cca = (za as i64) >> 31;
+            ccb = (zb as i64) >> 31;
+            println!("cca={:?}", cca);
+            println!("ccb={:?}", ccb);
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
         //Capture if a or b are negative
         let nega = ((cca as u64) >> 63) as u32;
-        let negb = ((cca as u64) >> 63) as u32;
+        let negb = ((ccb as u64) >> 63) as u32;
+        println!("nega={:?}", nega);
+        println!("negb={:?}", negb);
         $classname::cond_negate(a, ConstantBool(nega));
         $classname::cond_negate(b, ConstantBool(negb));
 
-        nega | negb << 1
+        nega | (negb << 1)
     }
 
     fn co_reduce_mod(a: &mut [u32; NUMLIMBS], b: &mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) {
@@ -895,8 +905,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         for k in 0..NUMLIMBS {
             let wa = a[k] as u64;
             let wb = b[k] as u64;
-            let za = wa * (pa as u64) + wb * (pb as u64) + (PRIME[k] as u64) * (fa as u64) + (cca as u64);
-            let zb = wa * (qa as u64) + wb * (qb as u64) + (PRIME[k] as u64) * (fb as u64) + (ccb as u64);
+            let za = wa.wrapping_mul(pa as u64).wrapping_add(wb.wrapping_mul(pb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fa as u64)).wrapping_add(cca as u64);
+            let zb = wa.wrapping_mul(qa as u64).wrapping_add(wb.wrapping_mul(qb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fb as u64)).wrapping_add(ccb as u64);
             if k > 0 {
                 a[k - 1] = (za & 0x7FFFFFFFu64) as u32;
                 b[k - 1] = (zb & 0x7FFFFFFFu64) as u32;
@@ -904,11 +914,13 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
             //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
             //and that's what we want here.
-            let foo = 1u64 << 32;
-            let tta = ((za >> 31) ^ foo) - foo;
-            let ttb = ((zb >> 31) ^ foo) - foo;
-            cca = tta as i64;
-            ccb = ttb as i64;
+            // let foo = 1u64 << 32;
+            // let tta = ((za >> 31) ^ foo).wrapping_sub(foo);
+            // let ttb = ((zb >> 31) ^ foo).wrapping_sub(foo);
+            // cca = tta as i64;
+            // ccb = ttb as i64;
+            cca = (za as i64) >> 31;
+            ccb = (zb as i64) >> 31;
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
@@ -952,7 +964,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let mut b1 = 0u32;
             let (mut pa, mut pb, mut qa, mut qb) = (0i64,0i64,0i64,0i64);
             let (mut a_hi, mut b_hi) = (0u64,0u64);
-            let (mut a_lo, mut b_lo) = (0u64,0u64);
+            let (mut a_lo, mut b_lo) = (0u32,0u32);
             for j in (0..len).rev() {
                 let aw = a[j];
                 let bw = b[j];
@@ -961,7 +973,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 b0 ^= (b0 ^ bw) & c0;
                 b1 ^= (b1 ^ bw) & c1;
                 c1 = c0;
-                c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31) - 1u32;
+                c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31).wrapping_sub(1u32);
             }
 
              /*
@@ -976,8 +988,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
              b0 &= !c1;
              a_hi = ((a0 as u64) << 31) + a1 as u64;
              b_hi = ((b0 as u64) << 31) + b1 as u64;
-             a_lo = a[0] as u64;
-             b_lo = b[0] as u64;
+             a_lo = a[0] as u32;
+             b_lo = b[0] as u32;
 
 
             /*
@@ -1034,6 +1046,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 cAB = oa & ob & r;
                 cBA = oa & ob & r_not;
                 cA = cAB | ConstantBool(oa).not().0;
+                println!("");
+                println!("START",);
                 println!("cA={:?}",cA);
                 println!("cBA={:?}",cBA);
                 println!("cAB={:?}",cAB);
@@ -1049,26 +1063,45 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 /*
                  * Conditional subtractions.
                  */
-                a_lo -= b_lo & cAB.wrapping_neg() as u64;
-                a_hi -= b_hi & cAB.wrapping_neg()as u64;
-                pa -= qa & cAB.wrapping_neg() as i64; //-(int64_t)
-                pb -= qb & cAB.wrapping_neg() as i64; //-(int64_t)
-                b_lo -= a_lo & cBA.wrapping_neg() as u64;
-                b_hi -= a_hi & cBA.wrapping_neg() as u64;
-                qa -= pa & cBA.wrapping_neg() as i64;
-                qb -= pb & cBA.wrapping_neg() as i64;
+                a_lo = a_lo.wrapping_sub(b_lo & cAB.wrapping_neg());
+                println!("a_lo-2={:?}", a_lo);
+                a_hi = a_hi.wrapping_sub(b_hi & (cAB as u64).wrapping_neg());
+                println!("a_hi-2={:?}", a_hi);
+                pa -= qa & -(cAB as i64);
+                pb -= qb & -(cAB as i64);
+                b_lo =  b_lo.wrapping_sub(a_lo & cBA.wrapping_neg());
+                println!("b_lo-2={:?}", b_lo);
+                b_hi = b_hi.wrapping_sub(a_hi & (cBA as u64).wrapping_neg());
+                println!("b_hi-2={:?}", b_hi);
+                qa -= pa & -(cBA as i64);
+                qb -= pb & -(cBA as i64);
 
                 /*
                  * Shifting.
                  */
-                a_lo += a_lo & cA.wrapping_sub(1) as u64;
-                pa += pa & cA.wrapping_sub(1) as i64; //(int64_t)
-                pb += pb & cA.wrapping_sub(1) as i64; // (int64_t)
-                a_hi ^= (a_hi ^ (a_hi >> 1)) & cA.wrapping_neg() as u64; //(uint64_t)
-                b_lo += b_lo & cA.wrapping_neg() as u64;
-                qa += qa & cA.wrapping_neg() as i64; //(int64_t)
-                qb += qb & cA.wrapping_neg() as i64;
+                a_lo = a_lo.wrapping_add(a_lo & cA.wrapping_sub(1));
+                println!("a_lo-3={:?}", a_lo);
+                pa += pa & (cA as i64) - 1; //(int64_t)
+                pb += pb & (cA as i64) - 1; // (int64_t)
+                a_hi ^= (a_hi ^ (a_hi >> 1)) & (cA as u64).wrapping_neg(); //(uint64_t)
+                println!("a_hi-3={:?}", a_hi);
+                b_lo = b_lo.wrapping_add(b_lo & cA.wrapping_neg());
+                println!("b_lo-3={:?}", b_lo);
+                qa += qa & -(cA as i64); //(int64_t)
+                qb += qb & -(cA as i64);
                 b_hi ^= (b_hi ^ (b_hi >> 1)) & (cA as u64).wrapping_sub(1);
+                println!("b_hi-3={:?}", b_hi);
+
+
+                println!("pa-after={:?}",pa);
+                println!("pb-after={:?}",pb);
+                println!("qa-after={:?}",qa);
+                println!("qb-after={:?}",qb);
+                println!("a_lo-after={:?}",a_lo);
+                println!("a_hi-after={:?}",a_hi);
+                println!("b_lo-after={:?}",b_lo);
+                println!("b_hi-after={:?}",b_hi);
+                println!("END");
             }
 
             /*
