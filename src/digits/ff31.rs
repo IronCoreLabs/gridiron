@@ -8,7 +8,7 @@ macro_rules! from_unsigned31 { ($classname: ident; $($T:ty),*) => { $(
         }
     }
 )+ }}
-
+//COLT: Comment is out of date.
 /// Create an Fp type given the following parameters:
 /// - modname - the name of the module you want the Fp type in.
 /// - classname - the name of the Fp struct
@@ -25,11 +25,11 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     use $crate::digits::constant_bool::*;
     use std::cmp::Ordering;
     use std::fmt;
-    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Not, Neg, Sub, SubAssign, BitAnd, BitAndAssign};
+    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, Not};
     use num_traits::{One, Zero, Inv, Pow};
     use std::convert::From;
     use std::option::Option;
-    use std::marker::{Copy, Send, Sync, Sized, self};
+    use std::marker;
 
     pub const LIMBSIZEBITS: usize = 31;
     pub const BITSPERBYTE: usize = 8;
@@ -271,7 +271,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     impl Div for $classname {
         type Output = $classname;
         fn div(self, rhs: $classname) -> $classname {
-            unimplemented!();
+            let mut x = self.limbs;
+            let mut y = rhs.limbs;
+            $classname::div_mod(&mut x,&mut y);
+            $classname::new(x)
         }
     }
 
@@ -608,6 +611,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             res
         }
 
+        #[inline]
         fn test_bit(a: &[u32; NUMLIMBS], idx: usize) -> ConstantBool<u32> {
             let limb_idx = idx / LIMBSIZEBITS;
             let limb_bit_idx = idx - limb_idx * LIMBSIZEBITS;
@@ -618,6 +622,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             self as *const $classname
         }
 
+        #[inline]
         fn iter_bit(&self) -> FpBitIter<$classname> {
             FpBitIter {
                 p: self.as_ptr(),
@@ -805,21 +810,294 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         (x as u64 * y as u64) as u32 & 0x7FFFFFFFu32
     }
 
+    #[inline]
     fn cond_negate_mod_prime(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
         let mut foo = PRIME;
         $classname::sub_assign_limbs_if(&mut foo, *a, ctl);
         *a = $classname::normalize_little_limbs(foo);
     }
 
-    fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: u32) {
-        let mut cc = ctl;
-        let xm = ctl.wrapping_neg() >> 1;
+    #[inline]
+    fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
+        let mut cc = ctl.0;
+        let xm = ctl.0.wrapping_neg() >> 1;
         for mut ai in a.iter_mut() {
             let mut aw = *ai;
             aw = (aw ^ xm) + cc;
             *ai = aw & 0x7FFFFFFF;
             cc = aw >> 31;
         }
+    }
+
+    //COLT: Comment and review for possible use of greater than instead of first loop.
+    //Also, comments about xm, ym and the xor trick.
+    #[inline]
+    fn finish_div_mod(a :&mut [u32; NUMLIMBS], neg: u32) {
+        let mut cc = 0u32;
+        for (a_item,prime_item) in a.iter().zip(PRIME.iter()){
+            cc = a_item.wrapping_sub(*prime_item).wrapping_sub(cc) >> 31;
+        }
+        let xm = neg.wrapping_neg() >> 1;
+        let ym = (neg | 1u32.wrapping_sub(cc)).wrapping_neg();
+
+        for (a_item,prime_item) in a.iter_mut().zip(PRIME.iter()){
+            let mw = (prime_item ^ xm) & ym;
+            let aw = a_item.wrapping_sub(mw).wrapping_sub(cc);
+            *a_item = aw & 0x7FFFFFFFu32;
+            cc = aw >> 31;
+        }
+    }
+
+    fn co_reduce(a :&mut [u32; NUMLIMBS], b:&mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) -> u32 {
+        let mut cca: i64 = 0;
+        let mut ccb: i64 = 0;
+        for k in 0..NUMLIMBS {
+            println!("a={:?}", a[k]);
+        println!("b={:?}", b[k]);
+        println!("pa={:?}", pa);
+        println!("pb={:?}", pb);
+        println!("qa={:?}", qa);
+        println!("qb={:?}", qb);
+        println!("cca={:?}", cca);
+        println!("ccb={:?}", ccb);
+            let za = (a[k] as u64) * (pa as u64) + (b[k] as u64) * (pb as u64) + (cca as u64);
+            let zb = (a[k] as u64) * (qa as u64) + (b[k] as u64) * (qb as u64) + (ccb as u64);
+            if k > 0 {
+                a[k - 1] = za as u32 & 0x7FFFFFFF;
+                b[k - 1] = zb as u32 & 0x7FFFFFFF;
+            }
+
+            //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
+            //and that's what we want here.
+            let foo = 1u64 << 32;
+            let tta = ((za >> 31) ^ foo) - foo;
+            let ttb = ((zb >> 31) ^ foo) - foo;
+            cca = tta as i64;
+            ccb = ttb as i64;
+        }
+        a[NUMLIMBS - 1] = cca as u32;
+        b[NUMLIMBS - 1] = ccb as u32;
+        //Capture if a or b are negative
+        let nega = ((cca as u64) >> 63) as u32;
+        let negb = ((cca as u64) >> 63) as u32;
+        $classname::cond_negate(a, ConstantBool(nega));
+        $classname::cond_negate(b, ConstantBool(negb));
+
+        nega | negb << 1
+    }
+
+    fn co_reduce_mod(a: &mut [u32; NUMLIMBS], b: &mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) {
+        let mut cca = 0i64;
+        let mut ccb = 0i64;
+        let fa = a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32).wrapping_mul(MONTM0INV));
+        let fb = a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32).wrapping_mul(MONTM0INV));
+
+        for k in 0..NUMLIMBS {
+            let wa = a[k] as u64;
+            let wb = b[k] as u64;
+            let za = wa * (pa as u64) + wb * (pb as u64) + (PRIME[k] as u64) * (fa as u64) + (cca as u64);
+            let zb = wa * (qa as u64) + wb * (qb as u64) + (PRIME[k] as u64) * (fb as u64) + (ccb as u64);
+            if k > 0 {
+                a[k - 1] = (za & 0x7FFFFFFFu64) as u32;
+                b[k - 1] = (zb & 0x7FFFFFFFu64) as u32;
+            }
+
+            //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
+            //and that's what we want here.
+            let foo = 1u64 << 32;
+            let tta = ((za >> 31) ^ foo) - foo;
+            let ttb = ((zb >> 31) ^ foo) - foo;
+            cca = tta as i64;
+            ccb = ttb as i64;
+        }
+        a[NUMLIMBS - 1] = cca as u32;
+        b[NUMLIMBS - 1] = ccb as u32;
+
+          /*
+           * At this point:
+           *   -m <= a < 2*m
+           *   -m <= b < 2*m
+           * (this is a case of Montgomery reduction)
+           * The top word of 'a' and 'b' may have a 32-th bit set.
+           * We may have to add or subtract the modulus.
+           */
+          $classname::finish_div_mod(a, ((cca as u64) >> 63) as u32);
+          $classname::finish_div_mod(b, ((ccb as u64) >> 63) as u32);
+    }
+
+
+    fn div_mod(x: &mut [u32; NUMLIMBS], y: &mut [u32; NUMLIMBS]) -> u32 {
+        let len = NUMLIMBS; //COLT: This is likely dumb.
+        let mut r = 0u32;
+        let mut a = {
+            let mut value = [0u32; NUMLIMBS];
+            value.copy_from_slice(y);
+            value
+        };
+        let mut b = {
+            let mut value = [0u32; NUMLIMBS];
+            value.copy_from_slice(&PRIME);
+            value
+        };
+        let u = x;
+        let mut v = [0u32; NUMLIMBS];
+        //COLT: For loop?
+        let mut num = ((PRIMEBITS - (PRIMEBITS >> 5)) << 1) + 30;
+        while num >= 30 {
+            let mut c0 = 0xFFFFFFFFu32;
+            let mut c1 = 0xFFFFFFFFu32;
+            let mut a0 = 0u32;
+            let mut a1 = 0u32;
+            let mut b0 = 0u32;
+            let mut b1 = 0u32;
+            let (mut pa, mut pb, mut qa, mut qb) = (0i64,0i64,0i64,0i64);
+            let (mut a_hi, mut b_hi) = (0u64,0u64);
+            let (mut a_lo, mut b_lo) = (0u64,0u64);
+            for j in (0..len).rev() {
+                let aw = a[j];
+                let bw = b[j];
+                a0 ^= (a0 ^ aw) & c0;
+                a1 ^= (a1 ^ aw) & c1;
+                b0 ^= (b0 ^ bw) & c0;
+                b1 ^= (b1 ^ bw) & c1;
+                c1 = c0;
+                c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31) - 1u32;
+            }
+
+             /*
+              * If c1 = 0, then we grabbed two words for a and b.
+              * If c1 != 0 but c0 = 0, then we grabbed one word. It
+              * is not possible that c1 != 0 and c0 != 0, because that
+              * would mean that both integers are zero.
+              */
+             a1 |= a0 & c1;
+             a0 &= !c1;
+             b1 |= b0 & c1;
+             b0 &= !c1;
+             a_hi = ((a0 as u64) << 31) + a1 as u64;
+             b_hi = ((b0 as u64) << 31) + b1 as u64;
+             a_lo = a[0] as u64;
+             b_lo = b[0] as u64;
+
+
+            /*
+             * Compute reduction factors:
+             *
+             *   a' = a*pa + b*pb
+             *   b' = a*qa + b*qb
+             *
+             * such that a' and b' are both multiple of 2^31, but are
+             * only marginally larger than a and b.
+             */
+            pa = 1;
+            pb = 0;
+            qa = 0;
+            qb = 1;
+            for i in 0..31 {
+                /*
+                 * At each iteration:
+                 *
+                 *   a <- (a-b)/2 if: a is odd, b is odd, a_hi > b_hi
+                 *   b <- (b-a)/2 if: a is odd, b is odd, a_hi <= b_hi
+                 *   a <- a/2 if: a is even
+                 *   b <- b/2 if: a is odd, b is even
+                 *
+                 * We multiply a_lo and b_lo by 2 at each
+                 * iteration, thus a division by 2 really is a
+                 * non-multiplication by 2.
+                 */
+                let (mut oa, mut ob, mut cAB, mut cBA, mut cA) = (0u32,0u32,0u32,0u32,0u32);
+                let mut rz = 0u64;
+
+                /*
+                 * r = GT(a_hi, b_hi)
+                 * But the GT() function works on uint32_t operands,
+                 * so we inline a 64-bit version here.
+                 */
+                //COLT: should be able to use constant primitives
+                rz = b_hi.wrapping_sub(a_hi);
+                r = ((rz ^ ((a_hi ^ b_hi) & (a_hi ^ rz))) >> 63) as u32;
+                let r_not = ConstantBool(r).not().0;
+
+                /*
+                 * cAB = 1 if b must be subtracted from a
+                 * cBA = 1 if a must be subtracted from b
+                 * cA = 1 if a is divided by 2, 0 otherwise
+                 *
+                 * Rules:
+                 *
+                 *   cAB and cBA cannot be both 1.
+                 *   if a is not divided by 2, b is.
+                 */
+                oa = ((a_lo >> i) & 1) as u32;
+                ob = ((b_lo >> i) & 1) as u32;
+                cAB = oa & ob & r;
+                cBA = oa & ob & r_not;
+                cA = cAB | ConstantBool(oa).not().0;
+                println!("cA={:?}",cA);
+                println!("cBA={:?}",cBA);
+                println!("cAB={:?}",cAB);
+                println!("pa={:?}",pa);
+                println!("pb={:?}",pb);
+                println!("qa={:?}",qa);
+                println!("qb={:?}",qb);
+                println!("a_lo={:?}",a_lo);
+                println!("a_hi={:?}",a_hi);
+                println!("b_lo={:?}",b_lo);
+                println!("b_hi={:?}",b_hi);
+
+                /*
+                 * Conditional subtractions.
+                 */
+                a_lo -= b_lo & cAB.wrapping_neg() as u64;
+                a_hi -= b_hi & cAB.wrapping_neg()as u64;
+                pa -= qa & cAB.wrapping_neg() as i64; //-(int64_t)
+                pb -= qb & cAB.wrapping_neg() as i64; //-(int64_t)
+                b_lo -= a_lo & cBA.wrapping_neg() as u64;
+                b_hi -= a_hi & cBA.wrapping_neg() as u64;
+                qa -= pa & cBA.wrapping_neg() as i64;
+                qb -= pb & cBA.wrapping_neg() as i64;
+
+                /*
+                 * Shifting.
+                 */
+                a_lo += a_lo & cA.wrapping_sub(1) as u64;
+                pa += pa & cA.wrapping_sub(1) as i64; //(int64_t)
+                pb += pb & cA.wrapping_sub(1) as i64; // (int64_t)
+                a_hi ^= (a_hi ^ (a_hi >> 1)) & cA.wrapping_neg() as u64; //(uint64_t)
+                b_lo += b_lo & cA.wrapping_neg() as u64;
+                qa += qa & cA.wrapping_neg() as i64; //(int64_t)
+                qb += qb & cA.wrapping_neg() as i64;
+                b_hi ^= (b_hi ^ (b_hi >> 1)) & (cA as u64).wrapping_sub(1);
+            }
+
+            /*
+             * Replace a and b with new values a' and b'.
+             */
+            r = $classname::co_reduce(&mut a, &mut b, pa, pb, qa, qb);
+            pa -= pa * ((r & 1) << 1) as i64;
+            pb -= pb * ((r & 1) << 1) as i64;
+            qa -= qa * (r & 2) as i64;
+            qb -= qb * (r & 2) as i64;
+            $classname::co_reduce_mod(u, &mut v, pa, pb, qa, qb);
+            num -= 30;
+        }
+
+        /*
+         * Now one of the arrays should be 0, and the other contains
+         * the GCD. If a is 0, then u is 0 as well, and v contains
+         * the division result.
+         * Result is correct if and only if GCD is 1.
+         */
+        r = (a[0] | b[0]) ^ 1;
+        u[0] |= v[0];
+        for k in 0..len {
+            r |= a[k] | b[k];
+            u[k] |= v[k];
+        }
+        //COLT: inlined version of EQ0
+        let qq = r as u32;
+        !(qq | qq.wrapping_neg()) >> 31
     }
 }
 
@@ -909,7 +1187,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            #[ignore]
             fn mul_equals_div(a in arb_fp(), b in arb_fp()) {
                 prop_assume!(!a.is_zero() && !b.is_zero());
                 let c = a * b;

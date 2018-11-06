@@ -146,8 +146,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
 
-    
-
     // c.bench_function("Fp256 - div (divide two Fp256s)", |bench| {
     //     let mut rng = rand::thread_rng();
     //     bench.iter_with_setup(

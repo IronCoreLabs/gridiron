@@ -4,9 +4,7 @@
  */
 
 use digits::constant_bool::*;
-// use $crate::digits::constant_bool::*;
 use num_traits::{NumOps, One, Zero};
-use std::convert::From;
 use std::mem::size_of;
 use std::num::Wrapping;
 use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};

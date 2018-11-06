@@ -17,9 +17,9 @@ pub mod digits {
 //   =
 fp31!(
     fp_480, // Name of mod
-    Fp480,    // Name of class
-    480,      // Number of bits for prime
-    16,       // Number of limbs (ceil(bits/31))
+    Fp480,  // Name of class
+    480,    // Number of bits for prime
+    16,     // Number of limbs (ceil(bits/31))
     [
         // prime number in limbs, least sig first
         // get this from sage with p.digits(2^31)
@@ -58,9 +58,9 @@ fp31!(
 // p = 65000549695646603732796438742359905742825358107623003571877145026864184071783
 fp31!(
     fp_256, // Name of mod
-    Fp256,    // Name of class
-    256,      // Number of bits for prime
-    9,        // Number of limbs (ceil(bits/31))
+    Fp256,  // Name of class
+    256,    // Number of bits for prime
+    9,      // Number of limbs (ceil(bits/31))
     [
         // prime number in limbs, least sig first
         // get this from sage with p.digits(2^31)
@@ -890,16 +890,10 @@ mod lib {
     fn fp256_from_bytes_should_mod() {
         use fp_256::Fp256;
         let max_bytes = Fp256::from([255u8; 32]);
-        let expected_result = Fp256::new(
-            [569862552,
-             1330030375,
-             2099849607,
-             220445046,
-             1739734497,
-             839018739,
-             1461584277,
-             629083738,
-             112]);
+        let expected_result = Fp256::new([
+            569862552, 1330030375, 2099849607, 220445046, 1739734497, 839018739, 1461584277,
+            629083738, 112,
+        ]);
         assert_eq!(max_bytes, expected_result);
         let to_bytes_result = max_bytes.to_bytes_array();
         assert_eq!(
