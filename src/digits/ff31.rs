@@ -839,7 +839,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         }
         let xm = neg.wrapping_neg() >> 1;
         let ym = (neg | 1u32.wrapping_sub(cc)).wrapping_neg();
-
+        cc = neg;
         for (a_item,prime_item) in a.iter_mut().zip(PRIME.iter()){
             let mw = (prime_item ^ xm) & ym;
             let aw = a_item.wrapping_sub(mw).wrapping_sub(cc);
@@ -847,28 +847,24 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             cc = aw >> 31;
         }
     }
-
-    fn co_reduce(a :&mut [u32; NUMLIMBS], b:&mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) -> u32 {
+    #[inline]
+    pub(crate) fn co_reduce(a :&mut [u32; NUMLIMBS], b:&mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) -> u32 {
+        // println!("a={:?}", a);
+        // println!("b={:?}", b);
+        // println!("pa={:?}", pa);
+        // println!("pb={:?}", pb);
+        // println!("qa={:?}", qa);
+        // println!("qb={:?}", qb);
         let mut cca: i64 = 0;
         let mut ccb: i64 = 0;
         for k in 0..NUMLIMBS {
-            println!("a={:?}", a[k]);
-        println!("b={:?}", b[k]);
-        println!("pa={:?}", pa);
-        println!("pb={:?}", pb);
-        println!("qa={:?}", qa);
-        println!("qb={:?}", qb);
-        println!("cca={:?}", cca);
-        println!("ccb={:?}", ccb);
-        println!("wa_pa={:?}",(a[k] as u64) * (pa as u64) );
-        println!("wb_pb={:?}",(b[k] as u64).wrapping_mul(pb as u64) );
             let za = (a[k] as u64).wrapping_mul(pa as u64).wrapping_add((b[k] as u64).wrapping_mul(pb as u64)).wrapping_add(cca as u64);
             let zb = (a[k] as u64).wrapping_mul(qa as u64).wrapping_add((b[k] as u64).wrapping_mul(qb as u64)).wrapping_add(ccb as u64);
-            println!("za={:?}",za);
-        println!("zb={:?}",zb);
             if k > 0 {
                 a[k - 1] = za as u32 & 0x7FFFFFFF;
                 b[k - 1] = zb as u32 & 0x7FFFFFFF;
+                // println!("co_reduce a[{:?}]={:?}", k-1, a[k-1]);
+                // println!("co_reduce b[{:?}]={:?}", k-1, b[k-1]);
             }
 
             //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
@@ -880,36 +876,64 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             // ccb = ttb as i64;
             cca = (za as i64) >> 31;
             ccb = (zb as i64) >> 31;
-            println!("cca={:?}", cca);
-            println!("ccb={:?}", ccb);
+            // println!("cca={:?}", cca);
+            // println!("ccb={:?}", ccb);
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
         //Capture if a or b are negative
         let nega = ((cca as u64) >> 63) as u32;
         let negb = ((ccb as u64) >> 63) as u32;
-        println!("nega={:?}", nega);
-        println!("negb={:?}", negb);
+        // println!("a={:?}", a);
+        // println!("b={:?}", b);
         $classname::cond_negate(a, ConstantBool(nega));
         $classname::cond_negate(b, ConstantBool(negb));
-
+        // println!("-a={:?}", a);
+        // println!("-b={:?}", b);
+        // println!("END");
+        // println!("");
+        
         nega | (negb << 1)
     }
-
+    
+    #[inline]
     fn co_reduce_mod(a: &mut [u32; NUMLIMBS], b: &mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) {
+        // println!("Begin reduce_mod");
+        // println!("pa={:?}", pa);
+        // println!("pb={:?}", pb);
+        // println!("qa={:?}", qa);
+        // println!("qb={:?}", qb);
         let mut cca = 0i64;
         let mut ccb = 0i64;
-        let fa = a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32).wrapping_mul(MONTM0INV));
-        let fb = a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32).wrapping_mul(MONTM0INV));
-
+            // fa = ((a[0] * (uint32_t)pa + b[0] * (uint32_t)pb) * m0i) & 0x7FFFFFFF;
+            // fb = ((a[0] * (uint32_t)qa + b[0] * (uint32_t)qb) * m0i) & 0x7FFFFFFF;
+        // println!("M0i={:?}", MONTM0INV);
+        let fa: u32 = a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)).wrapping_mul(MONTM0INV) & 0x7FFFFFFFu32;
+        let fb: u32 = a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)).wrapping_mul(MONTM0INV) & 0x7FFFFFFFu32;
+        // println!("fa={:?}", fa);
+        // println!("fb={:?}", fb);
+        // println!("first_wo_inv={:?}",a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)));
+        // println!("second_wo_inv={:?}", a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)));
+        // println!("first={:?}",a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)).wrapping_mul(MONTM0INV));
+        // println!("second={:?}", a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)).wrapping_mul(MONTM0INV));
         for k in 0..NUMLIMBS {
             let wa = a[k] as u64;
             let wb = b[k] as u64;
+            
             let za = wa.wrapping_mul(pa as u64).wrapping_add(wb.wrapping_mul(pb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fa as u64)).wrapping_add(cca as u64);
             let zb = wa.wrapping_mul(qa as u64).wrapping_add(wb.wrapping_mul(qb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fb as u64)).wrapping_add(ccb as u64);
+            // println!("k={:?}", k);
+            // println!("wa={:?}",wa );
+            // println!("wb={:?}", wb);
+            // println!("pa={:?}", pa);
+            // println!("PRIME[k]={:?}", PRIME[k]);
+            // println!("za={:?}", za);
+            // println!("zb={:?}", zb);
             if k > 0 {
-                a[k - 1] = (za & 0x7FFFFFFFu64) as u32;
-                b[k - 1] = (zb & 0x7FFFFFFFu64) as u32;
+                a[k - 1] = za as u32 & 0x7FFFFFFF;
+                b[k - 1] = zb as u32 & 0x7FFFFFFF;
+                // println!("reduce_mod a[{:?}]={:?}", k-1, a[k-1]);
+                // println!("reduce_mod b[{:?}]={:?}", k-1, b[k-1]);
             }
 
             //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
@@ -921,6 +945,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             // ccb = ttb as i64;
             cca = (za as i64) >> 31;
             ccb = (zb as i64) >> 31;
+            // println!("cca={:?}",cca );
+            // println!("ccb={:?}",ccb );
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
@@ -933,8 +959,16 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
            * The top word of 'a' and 'b' may have a 32-th bit set.
            * We may have to add or subtract the modulus.
            */
+          // println!("before finish_mod a={:?}", a);
+          // println!("before finish_mod b={:?}", b);
+          // println!("before finish_mod cca={:?}", ((cca as u64) >> 63) as u32);
+          // println!("before finish_mod ccb={:?}", ((ccb as u64) >> 63) as u32);
           $classname::finish_div_mod(a, ((cca as u64) >> 63) as u32);
           $classname::finish_div_mod(b, ((ccb as u64) >> 63) as u32);
+          // println!("after finish_mod a={:?}", a);
+          // println!("after finish_mod b={:?}", b);
+          // println!("END-reduce_mod");
+          // println!("");
     }
 
 
@@ -953,8 +987,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         };
         let u = x;
         let mut v = [0u32; NUMLIMBS];
+        //COLT: Comment. 
+        // let encoded_bits = 32*(PRIMEBITS/31) + (PRIMEBITS % 31);
         //COLT: For loop?
-        let mut num = ((PRIMEBITS - (PRIMEBITS >> 5)) << 1) + 30;
+        let mut num = (PRIMEBITS << 1) + 30;
         while num >= 30 {
             let mut c0 = 0xFFFFFFFFu32;
             let mut c1 = 0xFFFFFFFFu32;
@@ -966,16 +1002,36 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let (mut a_hi, mut b_hi) = (0u64,0u64);
             let (mut a_lo, mut b_lo) = (0u32,0u32);
             for j in (0..len).rev() {
+                // println!("j={:?}", j);
                 let aw = a[j];
                 let bw = b[j];
+                // println!("Before aw={:?}", aw);
+                // println!("Before bw={:?}", bw);
+                // println!("Before a0={:?}", a0);
+                // println!("Before a1={:?}", a1);
+                // println!("Before b0={:?}", b0);
+                // println!("Before b1={:?}", b1);
+                // println!("Before c0={:?}", c0);
+                // println!("Before c1={:?}", c1);
                 a0 ^= (a0 ^ aw) & c0;
                 a1 ^= (a1 ^ aw) & c1;
                 b0 ^= (b0 ^ bw) & c0;
                 b1 ^= (b1 ^ bw) & c1;
                 c1 = c0;
                 c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31).wrapping_sub(1u32);
+                // println!("After a0={:?}", a0);
+                // println!("After a1={:?}", a1);
+                // println!("After b0={:?}", b0);
+                // println!("After b1={:?}", b1);
+                // println!("After c0={:?}", c0);
+                // println!("After c1={:?}\n", c1);
             }
-
+            // println!("c0={:?}", c0);
+            // println!("c1={:?}", c1);
+            // println!("a0={:?}", a0);
+            // println!("a1={:?}", a1);
+            // println!("b0={:?}", b0);
+            // println!("b1={:?}", b1);
              /*
               * If c1 = 0, then we grabbed two words for a and b.
               * If c1 != 0 but c0 = 0, then we grabbed one word. It
@@ -986,10 +1042,14 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
              a0 &= !c1;
              b1 |= b0 & c1;
              b0 &= !c1;
-             a_hi = ((a0 as u64) << 31) + a1 as u64;
+             a_hi = ((a0 as u64)<< 31) + a1 as u64;
              b_hi = ((b0 as u64) << 31) + b1 as u64;
              a_lo = a[0] as u32;
              b_lo = b[0] as u32;
+             // println!("a_lo={:?}", a_lo);
+             // println!("b_lo={:?}", b_lo);
+             // println!("a_hi={:?}", a_hi);
+             // println!("b_hi={:?}", b_hi);
 
 
             /*
@@ -1018,8 +1078,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                  * iteration, thus a division by 2 really is a
                  * non-multiplication by 2.
                  */
-                let (mut oa, mut ob, mut cAB, mut cBA, mut cA) = (0u32,0u32,0u32,0u32,0u32);
-                let mut rz = 0u64;
+                // let (mut oa, mut ob, mut cAB, mut cBA, mut cA) = (0u32,0u32,0u32,0u32,0u32);
 
                 /*
                  * r = GT(a_hi, b_hi)
@@ -1027,9 +1086,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                  * so we inline a 64-bit version here.
                  */
                 //COLT: should be able to use constant primitives
-                rz = b_hi.wrapping_sub(a_hi);
-                r = ((rz ^ ((a_hi ^ b_hi) & (a_hi ^ rz))) >> 63) as u32;
-                let r_not = ConstantBool(r).not().0;
+                r = a_hi.const_gt(b_hi).0 as u32;
+                let r_not = ConstantUnsignedPrimitives::not(r);
 
                 /*
                  * cAB = 1 if b must be subtracted from a
@@ -1041,78 +1099,70 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                  *   cAB and cBA cannot be both 1.
                  *   if a is not divided by 2, b is.
                  */
-                oa = ((a_lo >> i) & 1) as u32;
-                ob = ((b_lo >> i) & 1) as u32;
-                cAB = oa & ob & r;
-                cBA = oa & ob & r_not;
-                cA = cAB | ConstantBool(oa).not().0;
-                println!("");
-                println!("START",);
-                println!("cA={:?}",cA);
-                println!("cBA={:?}",cBA);
-                println!("cAB={:?}",cAB);
-                println!("pa={:?}",pa);
-                println!("pb={:?}",pb);
-                println!("qa={:?}",qa);
-                println!("qb={:?}",qb);
-                println!("a_lo={:?}",a_lo);
-                println!("a_hi={:?}",a_hi);
-                println!("b_lo={:?}",b_lo);
-                println!("b_hi={:?}",b_hi);
+                let oa = (a_lo >> i) & 1;
+                let ob = (b_lo >> i) & 1;
+                let cAB = oa & ob & r;
+                let cBA = oa & ob & r_not;
+                let cA = cAB | ConstantUnsignedPrimitives::not(oa);
+                // println!("i={:?}", i);
+                // println!("r={:?}", r);
+                // println!("oa={:?}", oa);
+                // println!("ob={:?}", ob);
+                // println!("cAB={:?}", cAB);
+                // println!("cBA={:?}", cBA);
+                // println!("cA={:?}", cA);
 
                 /*
                  * Conditional subtractions.
                  */
                 a_lo = a_lo.wrapping_sub(b_lo & cAB.wrapping_neg());
-                println!("a_lo-2={:?}", a_lo);
                 a_hi = a_hi.wrapping_sub(b_hi & (cAB as u64).wrapping_neg());
-                println!("a_hi-2={:?}", a_hi);
                 pa -= qa & -(cAB as i64);
                 pb -= qb & -(cAB as i64);
                 b_lo =  b_lo.wrapping_sub(a_lo & cBA.wrapping_neg());
-                println!("b_lo-2={:?}", b_lo);
                 b_hi = b_hi.wrapping_sub(a_hi & (cBA as u64).wrapping_neg());
-                println!("b_hi-2={:?}", b_hi);
                 qa -= pa & -(cBA as i64);
                 qb -= pb & -(cBA as i64);
+                // println!("a_lo-2={:?}",a_lo);
+                // println!("a_hi-2={:?}",a_hi);
+                // println!("b_lo-2={:?}",b_lo);
+                // println!("b_hi-2={:?}",b_hi);
 
                 /*
                  * Shifting.
                  */
                 a_lo = a_lo.wrapping_add(a_lo & cA.wrapping_sub(1));
-                println!("a_lo-3={:?}", a_lo);
                 pa += pa & (cA as i64) - 1; //(int64_t)
                 pb += pb & (cA as i64) - 1; // (int64_t)
                 a_hi ^= (a_hi ^ (a_hi >> 1)) & (cA as u64).wrapping_neg(); //(uint64_t)
-                println!("a_hi-3={:?}", a_hi);
                 b_lo = b_lo.wrapping_add(b_lo & cA.wrapping_neg());
-                println!("b_lo-3={:?}", b_lo);
                 qa += qa & -(cA as i64); //(int64_t)
                 qb += qb & -(cA as i64);
                 b_hi ^= (b_hi ^ (b_hi >> 1)) & (cA as u64).wrapping_sub(1);
-                println!("b_hi-3={:?}", b_hi);
-
-
-                println!("pa-after={:?}",pa);
-                println!("pb-after={:?}",pb);
-                println!("qa-after={:?}",qa);
-                println!("qb-after={:?}",qb);
-                println!("a_lo-after={:?}",a_lo);
-                println!("a_hi-after={:?}",a_hi);
-                println!("b_lo-after={:?}",b_lo);
-                println!("b_hi-after={:?}",b_hi);
-                println!("END");
+                // println!("a_lo-3={:?}",a_lo);
+                // println!("a_hi-3={:?}",a_hi);
+                // println!("b_lo-3={:?}",b_lo);
+                // println!("b_hi-3={:?}",b_hi);
+                // println!("");
             }
 
             /*
              * Replace a and b with new values a' and b'.
              */
+            // println!("a before co_reduce{:?}", a);
+            // println!("b before co_reduce{:?}", b);
             r = $classname::co_reduce(&mut a, &mut b, pa, pb, qa, qb);
+            // println!("a after co_reduce{:?}", a);
+            // println!("b after co_reduce{:?}", b);
             pa -= pa * ((r & 1) << 1) as i64;
             pb -= pb * ((r & 1) << 1) as i64;
             qa -= qa * (r & 2) as i64;
             qb -= qb * (r & 2) as i64;
+            // println!("u before co_reduce_mod{:?}", u);
+            // println!("v before co_reduce_mode{:?}", v);
             $classname::co_reduce_mod(u, &mut v, pa, pb, qa, qb);
+            // println!("u after co_reduce_mod{:?}", u);
+            // println!("v after co_reduce_mode{:?}", v);
             num -= 30;
         }
 
@@ -1228,7 +1278,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            #[ignore]
             fn mul_equals_div_numerator_can_be_zero(a in arb_fp(), b in arb_fp()) {
                 prop_assume!(!b.is_zero());
                 let c = a * b;
@@ -1242,7 +1291,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             #[test]
-            #[ignore]
             fn div_zero_by_anything_should_be_zero(a in arb_fp()) {
                 prop_assume!(!a.is_zero());
                 let result = $classname::zero()/a;
