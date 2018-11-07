@@ -119,17 +119,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     impl PartialOrd for $classname {
         #[inline]
         fn partial_cmp(&self, other: &$classname) -> Option<Ordering> {
-            let mut res = 0i64;
-            self.limbs.iter().zip(other.limbs.iter()).rev().for_each(|(l, r)| {
-                let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
-                res = res.abs().mux(res, limbcmp);
-            });
-            match res {
-                -1 => Some(Ordering::Less),
-                0 => Some(Ordering::Equal),
-                1 => Some(Ordering::Greater),
-                _ => None
-            }
+            self.limbs.const_ordering(&other.limbs)
         }
     }
 
@@ -270,10 +260,20 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
     impl Div for $classname {
         type Output = $classname;
+        #[inline]
         fn div(self, rhs: $classname) -> $classname {
             let mut x = self.limbs;
             let mut y = rhs.limbs;
-            $classname::div_mod(&mut x,&mut y);
+            //Maybe we can do better here...
+            if y.const_eq0().0 == ConstantBool::new_true().0 {
+                panic!("Division by 0 is not defined.");
+            }
+
+            let result = $classname::div_mod(&mut x,&mut y);
+            if result != 0 {
+                panic!("Division not defined. This should not be allowed by our Fp types.");
+            }
+
             $classname::new(x)
         }
     }
@@ -339,7 +339,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
                 // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
                 let f: u32 = $classname::mul_31_lo(d[0] + $classname::mul_31_lo(a[i], b[0]), MONTM0INV);
-                // println!("i={:?} f=({:?}+{:?}*{:?})*{:?}={:?}", i, d[0], a[i], b[0], MONTM0INV, f);
                 let mut z: u64; // can be up to 2W^2
                 let mut c: u64; // can be up to 2W
                 let ai = a[i];
@@ -363,10 +362,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             // if dh≠0 or d≥m, set: d←d−m
-            // println!("answer before normalizing: {:?}", d);
             let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
             $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
-            // println!("answer aftter normalizing: {:?}", d);
             Monty { limbs: d }
         }
     }
@@ -429,7 +426,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     impl PartialOrd for Monty {
         #[inline]
         fn partial_cmp(&self, other: &Monty) -> Option<Ordering> {
-            unimplemented!();
+            self.limbs.const_ordering(&other.limbs)
         }
     }
 
@@ -849,12 +846,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
     #[inline]
     pub(crate) fn co_reduce(a :&mut [u32; NUMLIMBS], b:&mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) -> u32 {
-        // println!("a={:?}", a);
-        // println!("b={:?}", b);
-        // println!("pa={:?}", pa);
-        // println!("pb={:?}", pb);
-        // println!("qa={:?}", qa);
-        // println!("qb={:?}", qb);
         let mut cca: i64 = 0;
         let mut ccb: i64 = 0;
         for k in 0..NUMLIMBS {
@@ -863,90 +854,43 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             if k > 0 {
                 a[k - 1] = za as u32 & 0x7FFFFFFF;
                 b[k - 1] = zb as u32 & 0x7FFFFFFF;
-                // println!("co_reduce a[{:?}]={:?}", k-1, a[k-1]);
-                // println!("co_reduce b[{:?}]={:?}", k-1, b[k-1]);
             }
 
-            //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
-            //and that's what we want here.
-            // let foo = 1u64 << 32;
-            // let tta = ((za >> 31) ^ foo).wrapping_sub(foo);
-            // let ttb = ((zb >> 31) ^ foo).wrapping_sub(foo);
-            // cca = tta as i64;
-            // ccb = ttb as i64;
+            //The carries are actually the arithmetic shift by 31.
             cca = (za as i64) >> 31;
             ccb = (zb as i64) >> 31;
-            // println!("cca={:?}", cca);
-            // println!("ccb={:?}", ccb);
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
         //Capture if a or b are negative
         let nega = ((cca as u64) >> 63) as u32;
         let negb = ((ccb as u64) >> 63) as u32;
-        // println!("a={:?}", a);
-        // println!("b={:?}", b);
         $classname::cond_negate(a, ConstantBool(nega));
         $classname::cond_negate(b, ConstantBool(negb));
-        // println!("-a={:?}", a);
-        // println!("-b={:?}", b);
-        // println!("END");
-        // println!("");
         
         nega | (negb << 1)
     }
     
     #[inline]
     fn co_reduce_mod(a: &mut [u32; NUMLIMBS], b: &mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) {
-        // println!("Begin reduce_mod");
-        // println!("pa={:?}", pa);
-        // println!("pb={:?}", pb);
-        // println!("qa={:?}", qa);
-        // println!("qb={:?}", qb);
         let mut cca = 0i64;
         let mut ccb = 0i64;
-            // fa = ((a[0] * (uint32_t)pa + b[0] * (uint32_t)pb) * m0i) & 0x7FFFFFFF;
-            // fb = ((a[0] * (uint32_t)qa + b[0] * (uint32_t)qb) * m0i) & 0x7FFFFFFF;
-        // println!("M0i={:?}", MONTM0INV);
         let fa: u32 = a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)).wrapping_mul(MONTM0INV) & 0x7FFFFFFFu32;
         let fb: u32 = a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)).wrapping_mul(MONTM0INV) & 0x7FFFFFFFu32;
-        // println!("fa={:?}", fa);
-        // println!("fb={:?}", fb);
-        // println!("first_wo_inv={:?}",a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)));
-        // println!("second_wo_inv={:?}", a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)));
-        // println!("first={:?}",a[0].wrapping_mul(pa as u32).wrapping_add(b[0].wrapping_mul(pb as u32)).wrapping_mul(MONTM0INV));
-        // println!("second={:?}", a[0].wrapping_mul(qa as u32).wrapping_add(b[0].wrapping_mul(qb as u32)).wrapping_mul(MONTM0INV));
         for k in 0..NUMLIMBS {
             let wa = a[k] as u64;
             let wb = b[k] as u64;
             
             let za = wa.wrapping_mul(pa as u64).wrapping_add(wb.wrapping_mul(pb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fa as u64)).wrapping_add(cca as u64);
             let zb = wa.wrapping_mul(qa as u64).wrapping_add(wb.wrapping_mul(qb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fb as u64)).wrapping_add(ccb as u64);
-            // println!("k={:?}", k);
-            // println!("wa={:?}",wa );
-            // println!("wb={:?}", wb);
-            // println!("pa={:?}", pa);
-            // println!("PRIME[k]={:?}", PRIME[k]);
-            // println!("za={:?}", za);
-            // println!("zb={:?}", zb);
             if k > 0 {
                 a[k - 1] = za as u32 & 0x7FFFFFFF;
                 b[k - 1] = zb as u32 & 0x7FFFFFFF;
-                // println!("reduce_mod a[{:?}]={:?}", k-1, a[k-1]);
-                // println!("reduce_mod b[{:?}]={:?}", k-1, b[k-1]);
             }
 
-            //COLT: almost 100% sure that this is the same as (za as i64) >> 31, since rust uses arithmetic right shift on neg numbers
-            //and that's what we want here.
-            // let foo = 1u64 << 32;
-            // let tta = ((za >> 31) ^ foo).wrapping_sub(foo);
-            // let ttb = ((zb >> 31) ^ foo).wrapping_sub(foo);
-            // cca = tta as i64;
-            // ccb = ttb as i64;
+            //Arithmetic shifting by 31 places gets is the carry.
             cca = (za as i64) >> 31;
             ccb = (zb as i64) >> 31;
-            // println!("cca={:?}",cca );
-            // println!("ccb={:?}",ccb );
         }
         a[NUMLIMBS - 1] = cca as u32;
         b[NUMLIMBS - 1] = ccb as u32;
@@ -959,16 +903,8 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
            * The top word of 'a' and 'b' may have a 32-th bit set.
            * We may have to add or subtract the modulus.
            */
-          // println!("before finish_mod a={:?}", a);
-          // println!("before finish_mod b={:?}", b);
-          // println!("before finish_mod cca={:?}", ((cca as u64) >> 63) as u32);
-          // println!("before finish_mod ccb={:?}", ((ccb as u64) >> 63) as u32);
           $classname::finish_div_mod(a, ((cca as u64) >> 63) as u32);
           $classname::finish_div_mod(b, ((ccb as u64) >> 63) as u32);
-          // println!("after finish_mod a={:?}", a);
-          // println!("after finish_mod b={:?}", b);
-          // println!("END-reduce_mod");
-          // println!("");
     }
 
 
@@ -998,40 +934,18 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let mut a1 = 0u32;
             let mut b0 = 0u32;
             let mut b1 = 0u32;
-            let (mut pa, mut pb, mut qa, mut qb) = (0i64,0i64,0i64,0i64);
             let (mut a_hi, mut b_hi) = (0u64,0u64);
             let (mut a_lo, mut b_lo) = (0u32,0u32);
             for j in (0..len).rev() {
-                // println!("j={:?}", j);
                 let aw = a[j];
                 let bw = b[j];
-                // println!("Before aw={:?}", aw);
-                // println!("Before bw={:?}", bw);
-                // println!("Before a0={:?}", a0);
-                // println!("Before a1={:?}", a1);
-                // println!("Before b0={:?}", b0);
-                // println!("Before b1={:?}", b1);
-                // println!("Before c0={:?}", c0);
-                // println!("Before c1={:?}", c1);
                 a0 ^= (a0 ^ aw) & c0;
                 a1 ^= (a1 ^ aw) & c1;
                 b0 ^= (b0 ^ bw) & c0;
                 b1 ^= (b1 ^ bw) & c1;
                 c1 = c0;
                 c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31).wrapping_sub(1u32);
-                // println!("After a0={:?}", a0);
-                // println!("After a1={:?}", a1);
-                // println!("After b0={:?}", b0);
-                // println!("After b1={:?}", b1);
-                // println!("After c0={:?}", c0);
-                // println!("After c1={:?}\n", c1);
             }
-            // println!("c0={:?}", c0);
-            // println!("c1={:?}", c1);
-            // println!("a0={:?}", a0);
-            // println!("a1={:?}", a1);
-            // println!("b0={:?}", b0);
-            // println!("b1={:?}", b1);
              /*
               * If c1 = 0, then we grabbed two words for a and b.
               * If c1 != 0 but c0 = 0, then we grabbed one word. It
@@ -1046,10 +960,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
              b_hi = ((b0 as u64) << 31) + b1 as u64;
              a_lo = a[0] as u32;
              b_lo = b[0] as u32;
-             // println!("a_lo={:?}", a_lo);
-             // println!("b_lo={:?}", b_lo);
-             // println!("a_hi={:?}", a_hi);
-             // println!("b_hi={:?}", b_hi);
 
 
             /*
@@ -1061,10 +971,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
              * such that a' and b' are both multiple of 2^31, but are
              * only marginally larger than a and b.
              */
-            pa = 1;
-            pb = 0;
-            qa = 0;
-            qb = 1;
+            let mut pa = 1i64;
+            let mut pb = 0i64;
+            let mut qa = 0i64;
+            let mut qb = 1i64;
             for i in 0..31 {
                 /*
                  * At each iteration:
@@ -1104,13 +1014,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 let cAB = oa & ob & r;
                 let cBA = oa & ob & r_not;
                 let cA = cAB | ConstantUnsignedPrimitives::not(oa);
-                // println!("i={:?}", i);
-                // println!("r={:?}", r);
-                // println!("oa={:?}", oa);
-                // println!("ob={:?}", ob);
-                // println!("cAB={:?}", cAB);
-                // println!("cBA={:?}", cBA);
-                // println!("cA={:?}", cA);
 
                 /*
                  * Conditional subtractions.
@@ -1123,10 +1026,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 b_hi = b_hi.wrapping_sub(a_hi & (cBA as u64).wrapping_neg());
                 qa -= pa & -(cBA as i64);
                 qb -= pb & -(cBA as i64);
-                // println!("a_lo-2={:?}",a_lo);
-                // println!("a_hi-2={:?}",a_hi);
-                // println!("b_lo-2={:?}",b_lo);
-                // println!("b_hi-2={:?}",b_hi);
 
                 /*
                  * Shifting.
@@ -1139,30 +1038,17 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                 qa += qa & -(cA as i64); //(int64_t)
                 qb += qb & -(cA as i64);
                 b_hi ^= (b_hi ^ (b_hi >> 1)) & (cA as u64).wrapping_sub(1);
-                // println!("a_lo-3={:?}",a_lo);
-                // println!("a_hi-3={:?}",a_hi);
-                // println!("b_lo-3={:?}",b_lo);
-                // println!("b_hi-3={:?}",b_hi);
-                // println!("");
             }
 
             /*
              * Replace a and b with new values a' and b'.
              */
-            // println!("a before co_reduce{:?}", a);
-            // println!("b before co_reduce{:?}", b);
             r = $classname::co_reduce(&mut a, &mut b, pa, pb, qa, qb);
-            // println!("a after co_reduce{:?}", a);
-            // println!("b after co_reduce{:?}", b);
             pa -= pa * ((r & 1) << 1) as i64;
             pb -= pb * ((r & 1) << 1) as i64;
             qa -= qa * (r & 2) as i64;
             qb -= qb * (r & 2) as i64;
-            // println!("u before co_reduce_mod{:?}", u);
-            // println!("v before co_reduce_mode{:?}", v);
             $classname::co_reduce_mod(u, &mut v, pa, pb, qa, qb);
-            // println!("u after co_reduce_mod{:?}", u);
-            // println!("v after co_reduce_mode{:?}", v);
             num -= 30;
         }
 

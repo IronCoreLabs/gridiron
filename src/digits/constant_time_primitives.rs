@@ -3,6 +3,7 @@
  * https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/inner.h
  */
 
+use std::cmp::Ordering;
 use digits::constant_bool::*;
 use num_traits::{NumOps, One, Zero};
 use std::mem::size_of;
@@ -170,6 +171,7 @@ pub trait ConstantUnsignedArray31 {
     fn const_lt(self, y: Self) -> ConstantBool<u32>;
     fn const_le(self, y: Self) -> ConstantBool<u32>;
     fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u32>);
+    fn const_ordering(&self, y:&Self) -> Option<Ordering>;
 }
 macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
 /// Must have maximum of 31-bits used per limb
@@ -228,6 +230,20 @@ impl ConstantUnsignedArray31 for [u32; $N] {
     #[inline]
     fn const_ge(self, y: Self) -> ConstantBool<u32> {
         self.const_lt(y).not()
+    }
+
+    fn const_ordering(&self, y:&Self) -> Option<Ordering> {
+        let mut res = 0i64;
+        self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
+            let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
+            res = res.abs().mux(res, limbcmp);
+        });
+        match res {
+            -1 => Some(Ordering::Less),
+            0 => Some(Ordering::Equal),
+            1 => Some(Ordering::Greater),
+            _ => None
+        }
     }
 
     #[inline]
