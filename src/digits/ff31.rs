@@ -615,7 +615,9 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         }
 
         pub fn to_str_hex(&self) -> String {
-            unimplemented!();
+            let mut ret = String::with_capacity((PRIMEBITS / BITSPERBYTE) * 2); // two chars for every byte
+            self.to_bytes_array().iter().for_each(|byte| ret.push_str(&format!("{:02x}", byte)));
+            ret
         }
 
         // From Handbook of Applied Crypto algo 14.12

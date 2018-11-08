@@ -304,29 +304,29 @@ mod lib {
     }
 
     // #[test]
-    // fn hex_dec_print() {
-    //     let p = fp_480::Fp480::new(fp_480::PRIME);
-    //     assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
-    //     assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
+    fn hex_dec_print() {
+        let p = fp_480::Fp480::new(fp_480::PRIME);
+        assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
+        assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
 
-    //     let p = fp_256::Fp256::new(fp_256::PRIME);
-    //     assert_eq!(
-    //         p.to_str_decimal().as_str(),
-    //         "65000549695646603732796438742359905742825358107623003571877145026864184071783"
-    //     );
-    //     assert_eq!(
-    //         p.to_str_hex().as_str(),
-    //         "8fb501e34aa387f9aa6fecb86184dc21ee5b88d120b5b59e185cac6c5e089667"
-    //     );
+        let p = fp_256::Fp256::new(fp_256::PRIME);
+        assert_eq!(
+            p.to_str_decimal().as_str(),
+            "65000549695646603732796438742359905742825358107623003571877145026864184071783"
+        );
+        assert_eq!(
+            p.to_str_hex().as_str(),
+            "8fb501e34aa387f9aa6fecb86184dc21ee5b88d120b5b59e185cac6c5e089667"
+        );
 
-    //     let mut bytes = [0u8; 32];
-    //     bytes[0] = 255;
-    //     // actual result here is mod PRIME
-    //     assert_eq!(
-    //         fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
-    //         "50339226693086325302401222106137814970392790680417402014301307793518034905497"
-    //     );
-    // }
+        let mut bytes = [0u8; 32];
+        bytes[0] = 255;
+        // actual result here is mod PRIME
+        assert_eq!(
+            fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
+            "50339226693086325302401222106137814970392790680417402014301307793518034905497"
+        );
+    }
 
     // #[test]
     // fn dec_print() {
@@ -669,12 +669,25 @@ mod lib {
         assert_eq!(fp_480::Fp480::reduce_barrett(&xsquared), expected);
     }
 
-    // #[test]
-    // fn debug_output_test256() {
-    //     let other = fp_256::Fp256::new([0, 0, 0x00FFFFFFFFFFFFFFu64, 0]);
-    //     let str = format!("debug: {:?}, decimal: {}, hex: {:x}", other, other, other);
-    //     assert_eq!(&str.replace(" ", ""), "debug:Fp256(0x0,0x0,0xffffffffffffff,0x0),decimal:24519928653854221393451185513466483474525218523169423360,hex:0x000000000000000000ffffffffffffff00000000000000000000000000000000");
-    // }
+    #[test]
+    fn debug_hex_output_test256() {
+        // 0x00000000000000000000000000000000000000003fffffffc000000000000000
+        let other = fp_256::Fp256::new([0, 0, 0x00FFFFFFFFu32, 0, 0, 0, 0, 0, 0]);
+        let str = format!("hex: {:x}", other);
+        assert_eq!(
+            &str.replace(" ", ""),
+            "hex:0x00000000000000000000000000000000000000003fffffffc000000000000000"
+        );
+
+        // Note: we cap at PRIMEBYTES in length, discarding any higher bits
+        // 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+        let other = fp_256::Fp256::new([0x7FFFFFFF; 9]);
+        let str = format!("hex: {:x}", other);
+        assert_eq!(
+            &str.replace(" ", ""),
+            "hex:0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+    }
 
     #[test]
     fn neg_test256() {
