@@ -755,7 +755,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
 
         // If r<0 then r←r+bk+1
         // at most two subtractions with p
-        let dosub = r.const_gt(PRIME);
+        let dosub = r.const_ge(PRIME);
         Self::sub_assign_limbs_if(&mut r, PRIME, dosub);
 
         r
