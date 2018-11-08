@@ -146,15 +146,15 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
 
-    // c.bench_function("Fp256 - div (divide two Fp256s)", |bench| {
-    //     let mut rng = rand::thread_rng();
-    //     bench.iter_with_setup(
-    //         || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
-    //         |(a, b)| {
-    //             black_box(a / b);
-    //         },
-    //     );
-    // });
+    c.bench_function("Fp256 - div (divide two Fp256s)", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || (gen_rand_fp256(&mut rng), gen_rand_fp256(&mut rng)),
+            |(a, b)| {
+                black_box(a / b);
+            },
+        );
+    });
 
     c.bench_function("Fp256 - neg (negate an Fp256 100 times)", |bench| {
         let mut rng = rand::thread_rng();
@@ -168,10 +168,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    // c.bench_function("Fp256 - inv (invert an Fp256)", |bench| {
-    //     let mut rng = rand::thread_rng();
-    //     bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.inv());
-    // });
+    c.bench_function("Fp256 - inv (invert an Fp256)", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.inv());
+    });
 
     c.bench_function("Fp256 - square (square an Fp256)", |bench| {
         let mut rng = rand::thread_rng();

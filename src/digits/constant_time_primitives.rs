@@ -3,9 +3,9 @@
  * https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/inner.h
  */
 
-use std::cmp::Ordering;
 use digits::constant_bool::*;
 use num_traits::{NumOps, One, Zero};
+use std::cmp::Ordering;
 use std::mem::size_of;
 use std::num::Wrapping;
 use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
@@ -19,6 +19,7 @@ where
     fn not(self) -> Self;
     fn mux(self, x: Self, y: Self) -> Self;
     fn const_eq(self, y: Self) -> ConstantBool<Self>;
+    fn const_eq0(self) -> ConstantBool<Self>;
     fn const_neq(self, y: Self) -> ConstantBool<Self>;
     fn const_gt(self, y: Self) -> ConstantBool<Self>;
     fn const_ge(self, y: Self) -> ConstantBool<Self>;
@@ -58,6 +59,12 @@ impl ConstantUnsignedPrimitives for $T {
     fn const_eq(self, y: Self) -> ConstantBool<Self> {
         let q = self ^ y;
         ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1)).not()
+    }
+   #[inline]
+    fn const_eq0(self) -> ConstantBool<Self> {
+        let q = self as u64;
+        let result = (!(q | q.wrapping_neg()) >> 63) as Self;
+        ConstantBool::is_zero(result)
     }
     #[inline]
     fn const_neq(self, y: Self) -> ConstantBool<Self> {
@@ -171,7 +178,7 @@ pub trait ConstantUnsignedArray31 {
     fn const_lt(self, y: Self) -> ConstantBool<u32>;
     fn const_le(self, y: Self) -> ConstantBool<u32>;
     fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u32>);
-    fn const_ordering(&self, y:&Self) -> Option<Ordering>;
+    fn const_ordering(&self, y: &Self) -> Option<Ordering>;
 }
 macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
 /// Must have maximum of 31-bits used per limb

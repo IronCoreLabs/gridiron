@@ -25,7 +25,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     use $crate::digits::constant_bool::*;
     use std::cmp::Ordering;
     use std::fmt;
-    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign, Not};
+    use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
     use num_traits::{One, Zero, Inv, Pow};
     use std::convert::From;
     use std::option::Option;
@@ -270,7 +270,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             }
 
             let result = $classname::div_mod(&mut x,&mut y);
-            if result != 0 {
+            if result.0 != ConstantBool::new_true().0 {
                 panic!("Division not defined. This should not be allowed by our Fp types.");
             }
 
@@ -455,6 +455,33 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         #[inline]
         fn is_one(&self) -> bool {
             self.limbs.const_eq(Self::one().limbs).0 == 1
+        }
+    }
+
+    ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
+    ///len bytes and split them into 31 bit limbs.
+    ///Note that this will _not_ check anything about the length of limbs and could be unsafe... BE CAREFUL!
+    #[inline]
+    pub (crate) fn convert_bytes_to_limbs_mut(src: &[u8], limbs: &mut [u32], len: usize) {
+        let mut acc = 0u32;
+        let mut acc_len = 0i32;
+        let mut v = 0;
+        for b in src.iter().rev().take(len){
+            let b_u32 = *b as u32;
+            acc |= b_u32 << acc_len;
+            acc_len += 8;
+            if acc_len >= 31 {
+                limbs[v] = acc & 0x7FFFFFFFu32;
+                v += 1;
+                acc_len -= 31;
+                //Note that because we're adding 8 each time through the loop
+                //and check that acc_len >= 31 that 8 - acc_len can _never_ be negative.
+                acc = b_u32 >> (8- acc_len);
+            }
+        }
+        if acc_len != 0{
+            limbs[v] = acc;
+            // v += 1
         }
     }
 
@@ -739,26 +766,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     #[inline]
     fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS]{
         let mut limbs = [0u32; NUMLIMBS];
-        let mut acc = 0u32;
-        let mut acc_len = 0i32;
-        let mut v = 0;
-        for b in src.iter().rev().take(len){
-            let b_u32 = *b as u32;
-            acc |= b_u32 << acc_len;
-            acc_len += 8;
-            if acc_len >= 31 {
-                limbs[v] = acc & 0x7FFFFFFFu32;
-                v += 1;
-                acc_len -= 31;
-                //Note that because we're adding 8 each time through the loop
-                //and check that acc_len >= 31 that 8 - acc_len can _never_ be negative.
-                acc = b_u32 >> (8- acc_len);
-            }
-        }
-        if acc_len != 0{
-            limbs[v] = acc;
-            // v += 1
-        }
+        convert_bytes_to_limbs_mut(&src, &mut limbs, len);
         limbs
     }
 
@@ -867,10 +875,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         let negb = ((ccb as u64) >> 63) as u32;
         $classname::cond_negate(a, ConstantBool(nega));
         $classname::cond_negate(b, ConstantBool(negb));
-        
+
         nega | (negb << 1)
     }
-    
+
     #[inline]
     fn co_reduce_mod(a: &mut [u32; NUMLIMBS], b: &mut [u32; NUMLIMBS], pa: i64, pb: i64, qa: i64, qb: i64) {
         let mut cca = 0i64;
@@ -880,7 +888,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         for k in 0..NUMLIMBS {
             let wa = a[k] as u64;
             let wb = b[k] as u64;
-            
+
             let za = wa.wrapping_mul(pa as u64).wrapping_add(wb.wrapping_mul(pb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fa as u64)).wrapping_add(cca as u64);
             let zb = wa.wrapping_mul(qa as u64).wrapping_add(wb.wrapping_mul(qb as u64)).wrapping_add((PRIME[k] as u64).wrapping_mul(fb as u64)).wrapping_add(ccb as u64);
             if k > 0 {
@@ -908,9 +916,9 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
     }
 
 
-    fn div_mod(x: &mut [u32; NUMLIMBS], y: &mut [u32; NUMLIMBS]) -> u32 {
+    fn div_mod(x: &mut [u32; NUMLIMBS], y: &[u32; NUMLIMBS]) -> ConstantBool<u32> {
         let len = NUMLIMBS; //COLT: This is likely dumb.
-        let mut r = 0u32;
+        let mut r: u32;
         let mut a = {
             let mut value = [0u32; NUMLIMBS];
             value.copy_from_slice(y);
@@ -923,7 +931,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
         };
         let u = x;
         let mut v = [0u32; NUMLIMBS];
-        //COLT: Comment. 
+        //COLT: Comment.
         // let encoded_bits = 32*(PRIMEBITS/31) + (PRIMEBITS % 31);
         //COLT: For loop?
         let mut num = (PRIMEBITS << 1) + 30;
@@ -934,8 +942,6 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             let mut a1 = 0u32;
             let mut b0 = 0u32;
             let mut b1 = 0u32;
-            let (mut a_hi, mut b_hi) = (0u64,0u64);
-            let (mut a_lo, mut b_lo) = (0u32,0u32);
             for j in (0..len).rev() {
                 let aw = a[j];
                 let bw = b[j];
@@ -956,10 +962,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
              a0 &= !c1;
              b1 |= b0 & c1;
              b0 &= !c1;
-             a_hi = ((a0 as u64)<< 31) + a1 as u64;
-             b_hi = ((b0 as u64) << 31) + b1 as u64;
-             a_lo = a[0] as u32;
-             b_lo = b[0] as u32;
+             let mut a_hi = ((a0 as u64)<< 31) + a1 as u64;
+             let mut b_hi = ((b0 as u64) << 31) + b1 as u64;
+             let mut a_lo = a[0] as u32;
+             let mut b_lo = b[0] as u32;
 
 
             /*
@@ -988,14 +994,10 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                  * iteration, thus a division by 2 really is a
                  * non-multiplication by 2.
                  */
-                // let (mut oa, mut ob, mut cAB, mut cBA, mut cA) = (0u32,0u32,0u32,0u32,0u32);
 
                 /*
                  * r = GT(a_hi, b_hi)
-                 * But the GT() function works on uint32_t operands,
-                 * so we inline a 64-bit version here.
                  */
-                //COLT: should be able to use constant primitives
                 r = a_hi.const_gt(b_hi).0 as u32;
                 let r_not = ConstantUnsignedPrimitives::not(r);
 
@@ -1031,11 +1033,11 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
                  * Shifting.
                  */
                 a_lo = a_lo.wrapping_add(a_lo & cA.wrapping_sub(1));
-                pa += pa & (cA as i64) - 1; //(int64_t)
-                pb += pb & (cA as i64) - 1; // (int64_t)
-                a_hi ^= (a_hi ^ (a_hi >> 1)) & (cA as u64).wrapping_neg(); //(uint64_t)
+                pa += pa & (cA as i64) - 1;
+                pb += pb & (cA as i64) - 1;
+                a_hi ^= (a_hi ^ (a_hi >> 1)) & (cA as u64).wrapping_neg();
                 b_lo = b_lo.wrapping_add(b_lo & cA.wrapping_neg());
-                qa += qa & -(cA as i64); //(int64_t)
+                qa += qa & -(cA as i64);
                 qb += qb & -(cA as i64);
                 b_hi ^= (b_hi ^ (b_hi >> 1)) & (cA as u64).wrapping_sub(1);
             }
@@ -1064,9 +1066,7 @@ macro_rules! fp31 { ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, 
             r |= a[k] | b[k];
             u[k] |= v[k];
         }
-        //COLT: inlined version of EQ0
-        let qq = r as u32;
-        !(qq | qq.wrapping_neg()) >> 31
+        r.const_eq0()
     }
 }
 
