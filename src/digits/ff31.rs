@@ -1,4 +1,3 @@
-
 ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
 ///len bytes and split them into 31 bit limbs.
 ///Note that this will _not_ check anything about the length of limbs and could be unsafe... BE CAREFUL!
@@ -522,7 +521,6 @@ macro_rules! fp31 {
                     self.limbs.const_eq(Self::one().limbs).0 == 1
                 }
             }
-
 
             impl $classname {
                 ///Square the value. Same as a value times itself, but slightly more performant.
