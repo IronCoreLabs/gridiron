@@ -186,13 +186,13 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    // c.bench_function("Fp256 - pow (exponentiate an Fp256 by a u64)", |bench| {
-    //     let mut rng = rand::thread_rng();
-    //     bench.iter_with_setup(
-    //         || (gen_rand_fp256(&mut rng), rng.next_u64()),
-    //         |(a, exp)| a.pow(exp),
-    //     );
-    // });
+    c.bench_function("Fp256 - pow (exponentiate an Fp256 by a u64)", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || (gen_rand_fp256(&mut rng), rng.next_u64()),
+            |(a, exp)| a.pow(exp),
+        );
+    });
 
     c.bench_function(
         "Fp256 - from, to_bytes_array (roundtrip to and from byte array 100 times)",

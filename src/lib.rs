@@ -1,3 +1,5 @@
+use digits::ff31::convert_bytes_to_limbs_mut;
+
 extern crate num_traits;
 #[cfg(test)]
 extern crate rand;
@@ -9,8 +11,8 @@ extern crate proptest;
 pub mod digits {
     #[macro_use]
     pub mod ff31;
-    pub(crate) mod constant_bool;
-    pub(crate) mod constant_time_primitives;
+    pub mod constant_bool;
+    pub mod constant_time_primitives;
 }
 
 // p = 3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023
@@ -97,7 +99,7 @@ fp31!(
 impl From<[u8; 64]> for fp_256::Fp256 {
     fn from(src: [u8; 64]) -> Self {
         let mut limbs = [0u32; 18];
-        fp_256::convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
         fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs))
     }
 }
@@ -105,16 +107,21 @@ impl From<[u8; 64]> for fp_256::Fp256 {
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
         let mut limbs = [0u32; 32];
-        fp_256::convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
         fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs))
     }
+}
+
+pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
+    let mut limbs = [0u32; 17];
+    convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+    limbs
 }
 
 #[cfg(test)]
 mod lib {
     use super::*;
-    use num_traits::{Inv, One, Pow, Zero};
-    use std::ops::{Div, Mul};
+    use num_traits::{One, Zero};
 
     // #[test]
     // fn normalize() {
@@ -303,29 +310,29 @@ mod lib {
         assert_eq!(a, result);
     }
 
-    // #[test]
+    #[test]
     fn hex_dec_print() {
         let p = fp_480::Fp480::new(fp_480::PRIME);
-        assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
+        // assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
         assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
 
         let p = fp_256::Fp256::new(fp_256::PRIME);
-        assert_eq!(
-            p.to_str_decimal().as_str(),
-            "65000549695646603732796438742359905742825358107623003571877145026864184071783"
-        );
+        // assert_eq!(
+        //     p.to_str_decimal().as_str(),
+        //     "65000549695646603732796438742359905742825358107623003571877145026864184071783"
+        // );
         assert_eq!(
             p.to_str_hex().as_str(),
             "8fb501e34aa387f9aa6fecb86184dc21ee5b88d120b5b59e185cac6c5e089667"
         );
 
-        let mut bytes = [0u8; 32];
-        bytes[0] = 255;
-        // actual result here is mod PRIME
-        assert_eq!(
-            fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
-            "50339226693086325302401222106137814970392790680417402014301307793518034905497"
-        );
+        // let mut bytes = [0u8; 32];
+        // bytes[0] = 255;
+        // // actual result here is mod PRIME
+        // assert_eq!(
+        //     fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
+        //     "50339226693086325302401222106137814970392790680417402014301307793518034905497"
+        // );
     }
 
     // #[test]
@@ -835,6 +842,9 @@ mod lib {
     #[test]
     fn fp256_from_bytes_should_mod() {
         use fp_256::Fp256;
+        let foo: Fp256 = 2u64.into();
+        let r: Vec<_> = foo.iter_bit().map(|x| x.0).collect();
+        println!("{:?}", r);
         let max_bytes = Fp256::from([255u8; 32]);
         let expected_result = Fp256::new([
             569862552, 1330030375, 2099849607, 220445046, 1739734497, 839018739, 1461584277,
