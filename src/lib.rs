@@ -1,4 +1,4 @@
-use digits::ff31::convert_bytes_to_limbs_mut;
+use digits::util::convert_bytes_to_limbs_mut;
 
 extern crate num_traits;
 #[cfg(test)]
@@ -13,6 +13,7 @@ pub mod digits {
     pub mod ff31;
     pub mod constant_bool;
     pub mod constant_time_primitives;
+    pub mod util;
 }
 
 // p = 3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023

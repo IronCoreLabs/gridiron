@@ -1,31 +1,3 @@
-///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
-///len bytes and split them into 31 bit limbs.
-///Note that this will _not_ check anything about the length of limbs and could be unsafe... BE CAREFUL!
-///For more safe versions of this, check the convert_bytes_to_limbs in each $classname.
-#[inline]
-pub fn convert_bytes_to_limbs_mut(src: &[u8], limbs: &mut [u32], len: usize) {
-    let mut acc = 0u32;
-    let mut acc_len = 0i32;
-    let mut v = 0;
-    for b in src.iter().rev().take(len) {
-        let b_u32 = *b as u32;
-        acc |= b_u32 << acc_len;
-        acc_len += 8;
-        if acc_len >= 31 {
-            limbs[v] = acc & 0x7FFFFFFFu32;
-            v += 1;
-            acc_len -= 31;
-            //Note that because we're adding 8 each time through the loop
-            //and check that acc_len >= 31 that 8 - acc_len can _never_ be negative.
-            acc = b_u32 >> (8 - acc_len);
-        }
-    }
-    if acc_len != 0 {
-        limbs[v] = acc;
-        // v += 1
-    }
-}
-
 //COLT: Comment is out of date.
 /// Create an Fp type given the following parameters:
 /// - modname - the name of the module you want the Fp type in.
@@ -45,9 +17,9 @@ macro_rules! fp31 {
             use std::marker;
             use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
             use std::option::Option;
+            use $crate::digits::util;
             use $crate::digits::constant_bool::*;
             use $crate::digits::constant_time_primitives::*;
-            use $crate::digits::ff31::convert_bytes_to_limbs_mut;
 
             pub const LIMBSIZEBITS: usize = 31;
             pub const BITSPERBYTE: usize = 8;
@@ -114,13 +86,6 @@ macro_rules! fp31 {
                     Ok(())
                 }
             }
-
-            // impl fmt::Display for $classname {
-            //     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            //         write!(f, "{}", self.to_str_decimal())?;
-            //         Ok(())
-            //     }
-            // }
 
             /// Prints the hex value of the number in big endian (most significant
             /// digit on the left and least on the right) to make debugging easier.
@@ -212,30 +177,29 @@ macro_rules! fp31 {
                     self
                 }
             }
-
+            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
+            ///If it is, you can use Mul<$classname>
             impl Mul<u32> for $classname {
                 type Output = $classname;
                 #[inline]
-                fn mul(mut self, rhs: u32) -> $classname {
-                    self *= rhs.into();
-                    self
+                fn mul(self, rhs: u32) -> $classname {
+                   sum_n(self, rhs as u64)
                 }
             }
-
+            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
+            ///If it is, you can use Mul<$classname>
             impl Mul<u64> for $classname {
                 type Output = $classname;
                 #[inline]
-                fn mul(mut self, rhs: u64) -> $classname {
-                    self *= rhs.into();
-                    self
+                fn mul(self, rhs: u64) -> $classname {
+                    sum_n(self,rhs)
                 }
             }
 
             impl MulAssign for $classname {
                 #[inline]
                 fn mul_assign(&mut self, rhs: $classname) {
-                    let doublesize = $classname::mul_limbs_classic(&self.limbs, &rhs.limbs);
-                    self.limbs = $classname::reduce_barrett(&doublesize);
+                    *self = self.to_monty() * rhs
                 }
             }
 
@@ -251,7 +215,7 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn pow(self, rhs: u64) -> $classname {
-                    self.pow($classname::from(rhs))
+                    exp_by_squaring(self, rhs)
                 }
             }
 
@@ -282,6 +246,50 @@ macro_rules! fp31 {
                     $classname { limbs: x.limbs }
                 }
             }
+        ///This reveals the exponent so it should not be called with secret values.
+        #[inline]
+        fn exp_by_squaring(orig_x: $classname, nn: u64) -> $classname {
+            if nn == 0 {
+                $classname::one()
+            }else{
+                let mut y = $classname::one();
+                let mut x = orig_x;
+                let mut n = nn;
+                while n > 1 {
+                    if (n & 1) == 0 {
+                        x = x.square();
+                        n /= 2;
+                    } else {
+                        y = x * y;
+                        x = x.square();
+                        n = (n-1)/2;
+                    }    
+                }
+                y * x
+            }
+        }
+
+
+        ///Sum t n times. 
+        #[inline]
+        fn sum_n(mut t: $classname, n: u64) -> $classname {
+            if n == 0 {
+                Zero::zero()
+            } else if n == 1 {
+                t
+            } else {
+                let mut extra = t;
+                let mut k = n - 1;
+                while k != 1 {
+                    let x = if (k & 1) == 1 { t + extra } else { extra };
+                    t = t + t;
+                    k = k >> 1;
+                    extra =  x;
+                }
+                t + extra
+            }
+        }
+
 
             impl Div for $classname {
                 type Output = $classname;
@@ -356,6 +364,51 @@ macro_rules! fp31 {
             }
 
             impl Monty {
+                //COLT: dedupe
+                ///This reveals the exponent so it should not be called with secret values.
+                #[inline]
+                fn exp_by_squaring(orig_x: Monty, nn: u64) -> Monty {
+                    if nn == 0 {
+                        Monty::one()
+                    }else{
+                        let mut y = Monty::one();
+                        let mut x = orig_x;
+                        let mut n = nn;
+                        while n > 1 {
+                            if (n & 1) == 0 {
+                                x = x * x;
+                                n /= 2;
+                            } else {
+                                y = x * y;
+                                x = x * x;
+                                n = (n-1)/2;
+                            }    
+                        }
+                        y * x
+                    }
+                }
+
+                //COLT: dedupe
+                ///Sum t n times. 
+                #[inline]
+                fn sum_n(mut t: Monty, n: u64) -> Monty {
+                    if n == 0 {
+                        Zero::zero()
+                    } else if n == 1 {
+                        t
+                    } else {
+                        let mut extra = t;
+                        let mut k = n - 1;
+                        while k != 1 {
+                            let x = if (k & 1) == 1 { t + extra } else { extra };
+                            t = t + t;
+                            k = k >> 1;
+                            extra =  x;
+                        }
+                        t + extra
+                    }
+                }
+
                 pub fn to_norm(self) -> $classname {
                     let mut one = [0u32; NUMLIMBS];
                     one[0] = 1;
@@ -428,6 +481,24 @@ macro_rules! fp31 {
                 }
             }
 
+            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
+            ///If it is, you can use Mul<$classname>
+            impl Mul<u64> for Monty {
+                type Output = Monty;
+                #[inline]
+                fn mul(self, rhs: u64) -> Monty {
+                    Monty::sum_n(self,rhs)
+                }
+            }
+
+            impl Pow<u64> for Monty {
+                type Output = Monty;
+                #[inline]
+                fn pow(self, rhs: u64) -> Monty {
+                    Monty::exp_by_squaring(self, rhs)
+                }
+            }
+
             impl Mul<$classname> for Monty {
                 type Output = $classname;
 
@@ -443,6 +514,15 @@ macro_rules! fp31 {
                 #[inline]
                 fn mul(self, rhs: Monty) -> $classname {
                     $classname::new((Monty::new(self.limbs) * rhs).limbs)
+                }
+            }
+
+            impl Neg for Monty {
+                type Output = Monty;
+                #[inline]
+                fn neg(mut self) -> Monty {
+                    $classname::cond_negate_mod_prime(&mut self.limbs, ConstantBool::new_true());
+                    self
                 }
             }
 
@@ -578,16 +658,6 @@ macro_rules! fp31 {
                     self.limbs = $classname::reduce_barrett(&ret);
                 }
 
-                ///This function assumes that the buf pointer has at least 4 spaces starting at the beginning of the
-                ///slice. You need to assure this before calling.
-                #[inline]
-                fn u32_to_bytes_big_endian(x: u32, buf: &mut [u8]) {
-                    buf[0] = (x >> 24) as u8;
-                    buf[1] = (x >> 16) as u8;
-                    buf[2] = (x >> 8) as u8;
-                    buf[3] = x as u8;
-                }
-
                 ///Convert the value to a byte array which is `PRIMEBYTES` long.
                 ///Ported from BearSSL br_i31_encode.
                 #[inline]
@@ -614,7 +684,7 @@ macro_rules! fp31 {
                                 //Pull off 4 bytes and put them into the output buffer.
                                 current_output_index -= 4;
                                 len -= 4;
-                                $classname::u32_to_bytes_big_endian(
+                                util::u32_to_bytes_big_endian(
                                     to_write_out,
                                     &mut output[current_output_index..(current_output_index + 4)],
                                 )
@@ -798,7 +868,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS] {
                     let mut limbs = [0u32; NUMLIMBS];
-                    convert_bytes_to_limbs_mut(&src, &mut limbs, len);
+                    util::convert_bytes_to_limbs_mut(&src, &mut limbs, len);
                     limbs
                 }
 
@@ -836,6 +906,7 @@ macro_rules! fp31 {
                     ConstantBool(cc)
                 }
 
+                //TODO: We could move this to util.
                 #[inline]
                 fn sub_assign_limbs_slice(a: &mut [u32], b: &[u32]) -> ConstantBool<u32> {
                     debug_assert!(a.len() == b.len());
@@ -1306,6 +1377,7 @@ macro_rules! fp31 {
                     fn pow_equals_mult(a in arb_fp()) {
                         prop_assert_eq!(a * a, a.pow(2));
                         prop_assert_eq!(a * a * a, a.pow(3));
+                        prop_assert_eq!(a * a * a * a, a.pow(4));
                     }
 
                     #[test]
@@ -1365,6 +1437,11 @@ macro_rules! fp31 {
                         let mut aa = a.to_monty();
                         aa -= b.to_monty();
                         prop_assert_eq!(a - b, aa.to_norm())
+                    }
+                    #[test]
+                    fn monty_neg_works(a in arb_fp()) {
+                        let aa = a.to_monty();
+                        prop_assert_eq!(-a, -aa.to_norm())
                     }
                 }
             }
