@@ -34,10 +34,6 @@ impl<T: NumOps + Copy + BitXor<Output = T> + One> Not for ConstantBool<T> {
     }
 }
 
-// impl BitAndAssign
-// impl BitOrAssign
-// impl BitXOrAssign
-//
 impl<T: NumOps + Copy + Zero> Default for ConstantBool<T> {
     #[inline]
     fn default() -> ConstantBool<T> {
@@ -68,10 +64,8 @@ impl<T: NumOps + Copy + BitOr<Output = T>> BitOrAssign for ConstantBool<T> {
     }
 }
 
-//Neg<Output = Wrapping<T>>
 impl<T> ConstantBool<T>
 where
-    // u64: From<T>,
     Wrapping<T>: Neg<Output = Wrapping<T>> + BitOr<Output = Wrapping<T>>,
     T: NumOps
         + Copy
@@ -89,8 +83,6 @@ where
     }
     #[inline]
     pub fn is_zero(i: T) -> Self {
-        // let q = i as u64;
-        // let q = u64::from(i);
         let q = Wrapping(i);
         let shift_amount = size_of::<T>() * 8 - 1;
         ConstantBool((q | q.neg()).0 >> shift_amount).not()

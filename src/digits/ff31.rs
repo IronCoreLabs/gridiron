@@ -1,14 +1,17 @@
-//COLT: Comment is out of date.
 /// Create an Fp type given the following parameters:
 /// - modname - the name of the module you want the Fp type in.
 /// - classname - the name of the Fp struct
 /// - bits - How many bits the prime is.
-/// - limbs - Number of limbs (ceil(bits/64))
-/// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 64)`).
-/// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(64*numlimbs*2)/prime)`.
+/// - limbs - Number of limbs (ceil(bits/31))
+/// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
+/// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(31*numlimbs*2)/prime)`.
+/// - montgomery_r_inv - R = 2^(W*N) where W = word size and N = limbs. Then calculate R^-1 mod p. See lib.rs for examples.
+/// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
+/// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
 #[macro_export]
 macro_rules! fp31 {
     ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
+        //Large portions of this file are ported from the i31 implementations in BearSSL.
         pub mod $modname {
             use num_traits::{Inv, One, Pow, Zero};
             use std::cmp::Ordering;
@@ -38,6 +41,10 @@ macro_rules! fp31 {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
 
+            ///This is the Montgomery form of the $classname. This is typically used for its fast implementation of Multiplication
+            ///as the conversion to Montgomery form + multiplication is as fast as normal multiplication + reduction.
+            ///
+            ///If you are doing more than 1 multiplication, it's clearly a win.
             #[derive(PartialEq, Eq, Ord, Clone, Copy)]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
@@ -163,6 +170,8 @@ macro_rules! fp31 {
                 #[inline]
                 fn sub_assign(&mut self, other: $classname) {
                     let a = &mut self.limbs;
+                    //Subtract other from a, if the value that comes back is true, we need to do the add_assign. Otherwise do it
+                    //to keep constant time.
                     let needs_add =
                         $classname::sub_assign_limbs_if(a, other.limbs, ConstantBool(1));
                     $classname::add_assign_limbs_if(a, PRIME, needs_add);
@@ -183,7 +192,7 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn mul(self, rhs: u32) -> $classname {
-                   sum_n(self, rhs as u64)
+                   util::sum_n(self, rhs as u64)
                 }
             }
             ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
@@ -192,10 +201,12 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn mul(self, rhs: u64) -> $classname {
-                    sum_n(self,rhs)
+                    util::sum_n(self,rhs)
                 }
             }
 
+            ///Note that this uses a conversion to montgomery form and then multiplies by the other value to get back out.
+            ///This takes less time than just doing the multiplication and doing a reduction.
             impl MulAssign for $classname {
                 #[inline]
                 fn mul_assign(&mut self, rhs: $classname) {
@@ -211,11 +222,12 @@ macro_rules! fp31 {
                 }
             }
 
+            ///Reveals the exponent. If you need constant time, use Pow<$classname>
             impl Pow<u64> for $classname {
                 type Output = $classname;
                 #[inline]
                 fn pow(self, rhs: u64) -> $classname {
-                    exp_by_squaring(self, rhs)
+                    util::exp_by_squaring(self, rhs)
                 }
             }
 
@@ -233,10 +245,8 @@ macro_rules! fp31 {
                 fn pow(self, rhs: $classname) -> $classname {
                     let mut t1 = self.to_monty();
                     let mut x = Monty::one();
-                    let mut t2: Monty; // = Monty::zero();
-                                       // count up to bitlength of exponent
-                                       // not certain but just going to use prime bits
-                                       // for k in 0 .. PRIMEBITS {
+                    let mut t2: Monty;
+                    // count up to bitlength of exponent
                     for bit in rhs.iter_bit() {
                         t2 = x * t1;
                         x.limbs.const_copy_if(&t2.limbs, bit); // copy if bit is set
@@ -246,50 +256,6 @@ macro_rules! fp31 {
                     $classname { limbs: x.limbs }
                 }
             }
-        ///This reveals the exponent so it should not be called with secret values.
-        #[inline]
-        fn exp_by_squaring(orig_x: $classname, nn: u64) -> $classname {
-            if nn == 0 {
-                $classname::one()
-            }else{
-                let mut y = $classname::one();
-                let mut x = orig_x;
-                let mut n = nn;
-                while n > 1 {
-                    if (n & 1) == 0 {
-                        x = x.square();
-                        n /= 2;
-                    } else {
-                        y = x * y;
-                        x = x.square();
-                        n = (n-1)/2;
-                    }    
-                }
-                y * x
-            }
-        }
-
-
-        ///Sum t n times. 
-        #[inline]
-        fn sum_n(mut t: $classname, n: u64) -> $classname {
-            if n == 0 {
-                Zero::zero()
-            } else if n == 1 {
-                t
-            } else {
-                let mut extra = t;
-                let mut k = n - 1;
-                while k != 1 {
-                    let x = if (k & 1) == 1 { t + extra } else { extra };
-                    t = t + t;
-                    k = k >> 1;
-                    extra =  x;
-                }
-                t + extra
-            }
-        }
-
 
             impl Div for $classname {
                 type Output = $classname;
@@ -339,7 +305,7 @@ macro_rules! fp31 {
             impl From<u64> for $classname {
                 fn from(src: u64) -> Self {
                     let mut ret = $classname::zero();
-                    let bytes = $classname::split_u64_to_31b_array(src);
+                    let bytes = util::split_u64_to_31b_array(src);
                     for i in 0..3 {
                         ret.limbs[i] = bytes[i];
                     }
@@ -364,51 +330,7 @@ macro_rules! fp31 {
             }
 
             impl Monty {
-                //COLT: dedupe
-                ///This reveals the exponent so it should not be called with secret values.
-                #[inline]
-                fn exp_by_squaring(orig_x: Monty, nn: u64) -> Monty {
-                    if nn == 0 {
-                        Monty::one()
-                    }else{
-                        let mut y = Monty::one();
-                        let mut x = orig_x;
-                        let mut n = nn;
-                        while n > 1 {
-                            if (n & 1) == 0 {
-                                x = x * x;
-                                n /= 2;
-                            } else {
-                                y = x * y;
-                                x = x * x;
-                                n = (n-1)/2;
-                            }    
-                        }
-                        y * x
-                    }
-                }
-
-                //COLT: dedupe
-                ///Sum t n times. 
-                #[inline]
-                fn sum_n(mut t: Monty, n: u64) -> Monty {
-                    if n == 0 {
-                        Zero::zero()
-                    } else if n == 1 {
-                        t
-                    } else {
-                        let mut extra = t;
-                        let mut k = n - 1;
-                        while k != 1 {
-                            let x = if (k & 1) == 1 { t + extra } else { extra };
-                            t = t + t;
-                            k = k >> 1;
-                            extra =  x;
-                        }
-                        t + extra
-                    }
-                }
-
+                ///Bring the montgomery form back into the $classname.
                 pub fn to_norm(self) -> $classname {
                     let mut one = [0u32; NUMLIMBS];
                     one[0] = 1;
@@ -417,12 +339,8 @@ macro_rules! fp31 {
                     }
                 }
 
-                #[inline]
-                pub fn normalize_assign_little(&mut self) {
-                    let new_limbs = $classname::normalize_little_limbs(self.limbs);
-                    self.limbs = new_limbs;
-                }
-
+                ///Constructor. Note that this is unsafe if the limbs happen to be greater than your PRIME.
+                ///In that case you should use conversion to byte arrays or manually do the math on the limbs yourself.
                 pub(crate) fn new(limbs: [u32; NUMLIMBS]) -> Monty {
                     Monty { limbs }
                 }
@@ -487,15 +405,17 @@ macro_rules! fp31 {
                 type Output = Monty;
                 #[inline]
                 fn mul(self, rhs: u64) -> Monty {
-                    Monty::sum_n(self,rhs)
+                    util::sum_n(self,rhs)
                 }
             }
 
+            ///Note that this reveals the exponent, but nothing else. If you need constant time for the exponent, use 
+            ///Pow<$classname>.
             impl Pow<u64> for Monty {
                 type Output = Monty;
                 #[inline]
                 fn pow(self, rhs: u64) -> Monty {
-                    Monty::exp_by_squaring(self, rhs)
+                    util::exp_by_squaring(self, rhs)
                 }
             }
 
@@ -618,6 +538,7 @@ macro_rules! fp31 {
                     }
                 }
 
+                ///See normalize_little_limbs.
                 #[inline]
                 pub fn normalize_assign_little(&mut self) {
                     let new_limbs = $classname::normalize_little_limbs(self.limbs);
@@ -635,27 +556,10 @@ macro_rules! fp31 {
                     limbs
                 }
 
-                ///Take the extra limb and incorporate that into the existing value by modding by the prime.
                 #[inline]
                 pub fn normalize_little(mut self) -> Self {
                     self.normalize_assign_little();
                     self
-                }
-
-                #[inline]
-                pub fn normalize_big(mut self, extra_limb: u32) -> Self {
-                    self.normalize_assign_big(extra_limb);
-                    self
-                }
-
-                #[inline]
-                pub fn normalize_assign_big(&mut self, extra_limb: u32) {
-                    let mut ret = [0u32; NUMLIMBS * 2];
-                    for (dst, src) in ret.iter_mut().zip(self.limbs.iter()) {
-                        *dst = *src;
-                    }
-                    ret[NUMLIMBS] = extra_limb;
-                    self.limbs = $classname::reduce_barrett(&ret);
                 }
 
                 ///Convert the value to a byte array which is `PRIMEBYTES` long.
@@ -716,11 +620,6 @@ macro_rules! fp31 {
                     $classname { limbs: digits }
                 }
 
-                ///Write out the value in decimal form.
-                // pub fn to_str_decimal(mut self) -> String {
-                //     unimplemented!();
-                // }
-
                 pub fn to_str_hex(&self) -> String {
                     let mut ret = String::with_capacity((PRIMEBITS / BITSPERBYTE) * 2); // two chars for every byte
                     self.to_bytes_array()
@@ -740,8 +639,8 @@ macro_rules! fp31 {
                         let mut c = 0u32;
                         for j in 0..NUMLIMBS {
                             // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = Self::split_u64_to_31b(
-                                Self::mul_add(a[j], b[i], res[i + j]) + c as u64,
+                            let (u, v) = util::split_u64_to_31b(
+                                util::mul_add(a[j], b[i], res[i + j]) + c as u64,
                             );
                             res[i + j] = v;
                             c = u;
@@ -772,28 +671,6 @@ macro_rules! fp31 {
                     }
                 }
 
-                #[inline]
-                fn mul_add(a: u32, b: u32, c: u32) -> u64 {
-                    a as u64 * b as u64 + c as u64
-                }
-
-                /// Returns array with least sig in pos 0 and carry in pos 2
-                #[inline]
-                pub fn split_u64_to_31b_array(i: u64) -> [u32; 3] {
-                    let mut res = [032; 3];
-                    res[0] = (i & 0x7FFFFFFF) as u32;
-                    res[1] = ((i >> 31) & 0x7FFFFFFF) as u32;
-                    res[2] = (i >> 62) as u32;
-                    res
-                }
-
-                /// Returns (high, low) where high uses extra bit for carry
-                /// and low has a cleared 32nd bit
-                #[inline]
-                pub fn split_u64_to_31b(i: u64) -> (u32, u32) {
-                    ((i >> 31) as u32, (i & 0x7FFFFFFF) as u32)
-                }
-
                 // From Handbook of Applied Cryptography 14.42
                 // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
                 // OUTPUT: r = x mod m.
@@ -816,8 +693,8 @@ macro_rules! fp31 {
                         let mut c = 0u32;
                         for j in 0..NUMLIMBS + 1 {
                             // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = Self::split_u64_to_31b(
-                                Self::mul_add(q1[j], BARRETTMU[i], q2[i + j]) + c as u64,
+                            let (u, v) = util::split_u64_to_31b(
+                                util::mul_add(q1[j], BARRETTMU[i], q2[i + j]) + c as u64,
                             );
                             q2[i + j] = v;
                             c = u;
@@ -840,8 +717,8 @@ macro_rules! fp31 {
                         let mut c = 0u32;
                         for j in 0..NUMLIMBS {
                             // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = Self::split_u64_to_31b(
-                                Self::mul_add(q3[j], PRIME[i], r2[i + j]) + c as u64,
+                            let (u, v) = util::split_u64_to_31b(
+                                util::mul_add(q3[j], PRIME[i], r2[i + j]) + c as u64,
                             );
                             r2[i + j] = v;
                             c = u;
@@ -868,10 +745,11 @@ macro_rules! fp31 {
                 #[inline]
                 fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS] {
                     let mut limbs = [0u32; NUMLIMBS];
-                    util::convert_bytes_to_limbs_mut(&src, &mut limbs, len);
+                    util::unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, len);
                     limbs
                 }
 
+                ///Add a to b if `ctl` is true. Otherwise perform all the same access patterns but don't actually add.
                 #[inline]
                 fn add_assign_limbs_if(
                     a: &mut [u32; NUMLIMBS],
@@ -889,6 +767,7 @@ macro_rules! fp31 {
                     ConstantBool(cc)
                 }
 
+                ///Sub a from b if `ctl` is true. Otherwise perform all the same access patterns but don't actually subtract.
                 #[inline]
                 fn sub_assign_limbs_if(
                     a: &mut [u32; NUMLIMBS],
@@ -906,7 +785,6 @@ macro_rules! fp31 {
                     ConstantBool(cc)
                 }
 
-                //TODO: We could move this to util.
                 #[inline]
                 fn sub_assign_limbs_slice(a: &mut [u32], b: &[u32]) -> ConstantBool<u32> {
                     debug_assert!(a.len() == b.len());
@@ -933,6 +811,8 @@ macro_rules! fp31 {
                     *a = $classname::normalize_little_limbs(foo);
                 }
 
+                ///Negation (not mod prime) for a. Will only actulaly be performed if the ctl is true. Otherwise 
+                ///perform the same bit access pattern, but don't negate.
                 #[inline]
                 fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
                     let mut cc = ctl.0;
@@ -944,23 +824,31 @@ macro_rules! fp31 {
                         cc = aw >> 31;
                     }
                 }
-
-                //COLT: Comment and review for possible use of greater than instead of first loop.
-                //Also, comments about xm, ym and the xor trick.
+    
+                ///Finish modular reduction. Rules on input parameters:
+                /// if neg = 1, then -m <= a < 0
+                /// if neg = 0, then 0 <= a < 2*m
+                ///
+                ///If neg = 0, then the top word of a[] may use 32 bits.
                 #[inline]
                 fn finish_div_mod(a: &mut [u32; NUMLIMBS], neg: u32) {
-                    let mut cc = 0u32;
-                    for (a_item, prime_item) in a.iter().zip(PRIME.iter()) {
-                        cc = a_item.wrapping_sub(*prime_item).wrapping_sub(cc) >> 31;
-                    }
-                    let xm = neg.wrapping_neg() >> 1;
-                    let ym = (neg | 1u32.wrapping_sub(cc)).wrapping_neg();
-                    cc = neg;
+                    let mut cc = a.const_lt(PRIME);
+                    //TODO: It seems like this could all be made more clear if neg was ConstantBool(u32), but I couldn't get
+                    //that to look much better. We should examine it.
+
+                    // At this point:
+                    //   if neg = 1, then we must add m (regardless of cc)
+                    //   if neg = 0 and cc = 0, then we must subtract m
+                    //   if neg = 0 and cc = 1, then we must do nothing
+                    let xm = neg.wrapping_neg() >> 1; //If neg is 1, create a 31 bit mask, otherwise 0.
+                    let ym = (neg | 1u32.wrapping_sub(cc.0)).wrapping_neg();
+                    cc = ConstantBool(neg);
+
                     for (a_item, prime_item) in a.iter_mut().zip(PRIME.iter()) {
                         let mw = (prime_item ^ xm) & ym;
-                        let aw = a_item.wrapping_sub(mw).wrapping_sub(cc);
+                        let aw = a_item.wrapping_sub(mw).wrapping_sub(cc.0);
                         *a_item = aw & 0x7FFFFFFFu32;
-                        cc = aw >> 31;
+                        cc = ConstantBool(aw >> 31);
                     }
                 }
                 #[inline]

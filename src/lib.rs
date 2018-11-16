@@ -1,4 +1,4 @@
-use digits::util::convert_bytes_to_limbs_mut;
+use digits::util::unsafe_convert_bytes_to_limbs_mut;
 
 extern crate num_traits;
 #[cfg(test)]
@@ -100,7 +100,7 @@ fp31!(
 impl From<[u8; 64]> for fp_256::Fp256 {
     fn from(src: [u8; 64]) -> Self {
         let mut limbs = [0u32; 18];
-        convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
         fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs))
     }
 }
@@ -108,14 +108,14 @@ impl From<[u8; 64]> for fp_256::Fp256 {
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
         let mut limbs = [0u32; 32];
-        convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
         fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs))
     }
 }
 
 pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
     let mut limbs = [0u32; 17];
-    convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+    unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
     limbs
 }
 
@@ -123,87 +123,6 @@ pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
 mod lib {
     use super::*;
     use num_traits::{One, Zero};
-
-    // #[test]
-    // fn normalize() {
-    //     // pplusone = fp_480::PRIME + 1
-    //     let pplusone = fp_480::Fp480::new([
-    //         7590025971293054104,
-    //         747247717039963091,
-    //         7159038352024529316,
-    //         2036573563714931421,
-    //         3541392403947280546,
-    //         829128924894566329,
-    //         1019112720967587113,
-    //         4294731364,
-    //     ]);
-    //     assert_eq!(pplusone.normalize_little(0), fp_480::Fp480::one());
-
-    //     let ptimestwo = fp_480::Fp480::new([
-    //         15180051942586108206,
-    //         1494495434079926182,
-    //         14318076704049058632,
-    //         4073147127429862842,
-    //         7082784807894561092,
-    //         1658257849789132658,
-    //         2038225441935174226,
-    //         8589462728,
-    //     ]);
-    //     assert_eq!(ptimestwo.normalize_big(0), fp_480::Fp480::zero());
-
-    //     let ptimestwominusone = fp_480::Fp480::new([
-    //         15180051942586108205,
-    //         1494495434079926182,
-    //         14318076704049058632,
-    //         4073147127429862842,
-    //         7082784807894561092,
-    //         1658257849789132658,
-    //         2038225441935174226,
-    //         8589462728,
-    //     ]);
-    //     assert_eq!(
-    //         ptimestwominusone.normalize_little(0),
-    //         fp_480::Fp480::zero() - fp_480::Fp480::one()
-    //     );
-
-    //     let ptimesthreeplusone = fp_480::Fp480::new([
-    //         4323333840169610694,
-    //         2241743151119889274,
-    //         3030370982364036332,
-    //         6109720691144794264,
-    //         10624177211841841638,
-    //         2487386774683698987,
-    //         3057338162902761339,
-    //         12884194092,
-    //     ]);
-    //     assert_eq!(ptimesthreeplusone.normalize_big(0), fp_480::Fp480::one());
-
-    //     // so we should never have a number
-    //     // greater than 2p, which means all F's
-    //     // would be invalid for fp480
-    //     let max = fp_480::Fp480::new([
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0xFFFFFFFFFFFFFFFFu64,
-    //         0x00000000FFFFFFFFu64,
-    //     ]);
-    //     // as determined by sage
-    //     let expected = fp_480::Fp480::new([
-    //         10856718102416497512,
-    //         17699496356669588524,
-    //         11287705721685022299,
-    //         16410170509994620194,
-    //         14905351669762271069,
-    //         17617615148814985286,
-    //         17427631352741964502,
-    //         235931,
-    //     ]);
-    //     assert_eq!(max.normalize_big(0), expected);
-    // }
 
     // #[test]
     // fn is_normalized() {
@@ -312,35 +231,27 @@ mod lib {
     }
 
     #[test]
+    fn fp_256_31_normalize_prime_plus_1() {
+        let a = fp_256::Fp256::new([
+            1577621096, 817453272, 47634040, 1927038601, 407749150, 1308464908, 685899370,
+            1518399909, 143,
+        ]);
+        let result = a.normalize_little();
+        assert_eq!(result, fp_256::Fp256::one());
+    }
+
+    #[test]
     fn hex_dec_print() {
         let p = fp_480::Fp480::new(fp_480::PRIME);
         // assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
         assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
 
         let p = fp_256::Fp256::new(fp_256::PRIME);
-        // assert_eq!(
-        //     p.to_str_decimal().as_str(),
-        //     "65000549695646603732796438742359905742825358107623003571877145026864184071783"
-        // );
         assert_eq!(
             p.to_str_hex().as_str(),
             "8fb501e34aa387f9aa6fecb86184dc21ee5b88d120b5b59e185cac6c5e089667"
         );
-
-        // let mut bytes = [0u8; 32];
-        // bytes[0] = 255;
-        // // actual result here is mod PRIME
-        // assert_eq!(
-        //     fp_256::Fp256::from(bytes).to_str_decimal().as_str(),
-        //     "50339226693086325302401222106137814970392790680417402014301307793518034905497"
-        // );
     }
-
-    // #[test]
-    // fn dec_print() {
-    //     let p = fp_480::Fp480::new(fp_480::PRIME);
-    //     assert_eq!(p.to_str_decimal(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
-    // }
 
     #[test]
     fn zero1() {
@@ -363,90 +274,6 @@ mod lib {
         ]);
         assert_eq!(a * a, expected);
     }
-
-    // #[test]
-    // fn static_number_tests() {
-    //     // static values from sage
-    //     // let a = fp_480::Fp480::new_from_string("1849730734868681485455534012483517011951239946690093506001286715509796248056543867438342930397280622761994677963488469871518585836942949575474581", 10).unwrap();
-    //     let a = fp_480::Fp480::new([
-    //         12373281137873304981,
-    //         3364574066891759603,
-    //         18249495978001488097,
-    //         7121407741097929457,
-    //         17616622123341604582,
-    //         999548323268666092,
-    //         102536279974639920,
-    //         2544898439,
-    //     ]);
-    //     // let b = fp_480::Fp480::new_from_string("1427839274828296696112450624937180081894366106872726190963907037699726644896926911406125127099508401951977447182118568992280201726037533400584114", 10).unwrap();
-    //     let b = fp_480::Fp480::new([
-    //         13786755668808912818,
-    //         10295850694267584116,
-    //         6281259092835536344,
-    //         15649415232981746878,
-    //         8768243465836405520,
-    //         8938625549723856276,
-    //         4465923072383974360,
-    //         1964451297,
-    //     ]);
-    //     assert_eq!(
-    //         fp_480::Fp480::zero() - fp_480::Fp480::one(),
-    //         fp_480::Fp480::new(fp_480::PRIME) - fp_480::Fp480::one()
-    //     );
-    //     assert_eq!(
-    //         a + b,
-    //         fp_480::Fp480::new([
-    //             123266761679612080,
-    //             12913177044119380629,
-    //             17371716718812495125,
-    //             2287505336655193298,
-    //             4396729111521177941,
-    //             9109044948097956040,
-    //             3549346631391027167,
-    //             214618372
-    //         ])
-    //     );
-
-    //     assert_eq!(
-    //         b - a,
-    //         fp_480::Fp480::new([
-    //             9003500502228661940,
-    //             7678524344415787604,
-    //             13637545540568129179,
-    //             10564581055598748841,
-    //             13139757820151633100,
-    //             8768206151349756512,
-    //             5382499513376921553,
-    //             3714284222
-    //         ])
-    //     );
-    //     assert_eq!(
-    //         a - b,
-    //         fp_480::Fp480::new([
-    //             17033269542773943779,
-    //             11515467446333727102,
-    //             11968236885165951752,
-    //             9918736581825734195,
-    //             8848378657505199061,
-    //             10507666847254361432,
-    //             14083357281300217175,
-    //             580447141
-    //         ])
-    //     );
-    //     assert_eq!(
-    //         fp_480::Fp480::one() - a,
-    //         fp_480::Fp480::new([
-    //             13663488907129300739,
-    //             15829417723857755103,
-    //             7356286447732592834,
-    //             13361909896326553579,
-    //             4371514354315227579,
-    //             18276324675335451852,
-    //             916576440992947192,
-    //             1749832925
-    //         ])
-    //     );
-    // }
 
     // #[test]
     // fn identity_single_case() {
@@ -706,107 +533,6 @@ mod lib {
         assert_eq!(a * b, b);
         assert_eq!(-a * b, -b);
     }
-
-    // #[test]
-    // fn concrete_dist_assoc_norm() {
-    //     let a = fp_256::Fp256::new([
-    //         0xb12fb5043850e628,
-    //         0xd7bab085515748e0,
-    //         0x9b7355be1d204ae6,
-    //         0x860ac8b5,
-    //     ]);
-    //     let b = fp_256::Fp256::new([
-    //         0x2123ef649ef49cd4,
-    //         0x8da4e712c8bdff77,
-    //         0xb3799bf0e3bd329c,
-    //         0x926e001c,
-    //     ]);
-    //     let c = fp_256::Fp256::new([
-    //         10773964068678169461,
-    //         7781056686061812801,
-    //         7705577838994800718,
-    //         91624696780573940,
-    //     ]);
-    //     assert_eq!(a * b, c);
-    //     assert_eq!(c / a, b);
-    //     assert_eq!(c * a.inv(), b);
-
-    //     let a = fp_256::Fp256::new([
-    //         0xb8b64011623c018a,
-    //         0xddb38c295bc94eba,
-    //         0x6cd16ea46cd6bd8f,
-    //         0xd4d302ca,
-    //     ]);
-    //     let b = fp_256::Fp256::new([
-    //         0x523d205e45ad60fc,
-    //         0x21508a6d679848b0,
-    //         0xf36e0f4429ce3982,
-    //         0xf22e03e8,
-    //     ]);
-    //     let c = fp_256::Fp256::new([
-    //         0x99343d8586c2db10,
-    //         0x1dd26e85bda07d10,
-    //         0xa59686b61a629965,
-    //         0xd7cf30d3,
-    //     ]);
-    //     let expected = fp_256::Fp256::new([
-    //         15795495403639475627,
-    //         12400987731118697860,
-    //         2558584020451078739,
-    //         8223335412293341181,
-    //     ]);
-    //     let x = [
-    //         17550962939841192978,
-    //         11129715693094986530,
-    //         14839879005967945333,
-    //         131776332513548278,
-    //     ]; // this has a most sig of 1 not shown; mod of this should be 'expected'
-
-    //     let fpx = fp_256::Fp256::new(x);
-    //     assert_eq!(fpx.normalize_little(1), expected);
-
-    //     assert_eq!(
-    //         fp_256::Fp256::new([
-    //             1658067930733296012,
-    //             13547302404868533267,
-    //             9458636050195978030,
-    //             9117568210736327771
-    //         ]) + fp_256::Fp256::new([
-    //             15892895009107896966,
-    //             16029157361936004879,
-    //             5381242955771967302,
-    //             9460952195486772123
-    //         ]),
-    //         expected
-    //     );
-    //     assert_eq!(a * (b + c), a * b + a * c);
-    //     assert_eq!(a * (b + c), expected);
-
-    //     let max = fp_256::Fp256::new([
-    //         0xFFFFFFFFFFFFFFFF,
-    //         0xFFFFFFFFFFFFFFFF,
-    //         0xFFFFFFFFFFFFFFFF,
-    //         0xFFFFFFFFFFFFFFFF,
-    //     ]);
-    //     assert_eq!(
-    //         max.normalize_big(0),
-    //         fp_256::Fp256::new([
-    //             16691276537507834264,
-    //             1271272038023711329,
-    //             6165449088192685022,
-    //             8091559079779792902
-    //         ])
-    //     );
-    //     assert_eq!(
-    //         max.normalize_big(1),
-    //         fp_256::Fp256::new([
-    //             13180341465104399562,
-    //             3813816114071133989,
-    //             49603190868503450,
-    //             5827933165629827091
-    //         ])
-    //     );
-    // }
 
     #[test]
     fn test_from_sha_static() {
