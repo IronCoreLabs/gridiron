@@ -1,10 +1,10 @@
-use num_traits::{Zero, One};
+use num_traits::{One, Zero};
 
 ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
-///len bytes and split them into 31 bit limbs. 
+///len bytes and split them into 31 bit limbs.
 ///Note that this will _not_ check anything about the length of limbs and could be unsafe... BE CAREFUL!
 ///
-///If your limbs cannot hold the src content when it's converted this will reference the limbs slice out of bounds. If the src slice 
+///If your limbs cannot hold the src content when it's converted this will reference the limbs slice out of bounds. If the src slice
 ///is shorter than `len` this will also reference the src slice out of bounds.
 ///
 ///For more safe versions of this, check the convert_bytes_to_limbs in ff31::$classname.
@@ -43,10 +43,9 @@ pub fn u32_to_bytes_big_endian(x: u32, buf: &mut [u8]) {
     buf[3] = x as u8;
 }
 
-
-///Sum t n times. Reveals the value of n. 
+///Sum t n times. Reveals the value of n.
 #[inline]
-pub (crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
+pub(crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
     if n == 0 {
         Zero::zero()
     } else if n == 1 {
@@ -58,7 +57,7 @@ pub (crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
             let x = if (k & 1) == 1 { t + extra } else { extra };
             t = t + t;
             k = k >> 1;
-            extra =  x;
+            extra = x;
         }
         t + extra
     }
@@ -66,10 +65,10 @@ pub (crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
 
 ///This reveals the exponent so it should not be called with secret values.
 #[inline]
-pub (crate) fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
+pub(crate) fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
     if nn == 0 {
         T::one()
-    }else{
+    } else {
         let mut y = T::one();
         let mut x = orig_x;
         let mut n = nn;
@@ -80,16 +79,15 @@ pub (crate) fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
             } else {
                 y = x * y;
                 x = x * x;
-                n = (n-1)/2;
-            }    
+                n = (n - 1) / 2;
+            }
         }
         y * x
     }
 }
 
-
 #[inline]
-pub (crate) fn mul_add(a: u32, b: u32, c: u32) -> u64 {
+pub(crate) fn mul_add(a: u32, b: u32, c: u32) -> u64 {
     a as u64 * b as u64 + c as u64
 }
 

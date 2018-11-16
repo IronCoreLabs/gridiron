@@ -20,9 +20,9 @@ macro_rules! fp31 {
             use std::marker;
             use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
             use std::option::Option;
-            use $crate::digits::util;
             use $crate::digits::constant_bool::*;
             use $crate::digits::constant_time_primitives::*;
+            use $crate::digits::util;
 
             pub const LIMBSIZEBITS: usize = 31;
             pub const BITSPERBYTE: usize = 8;
@@ -192,7 +192,7 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn mul(self, rhs: u32) -> $classname {
-                   util::sum_n(self, rhs as u64)
+                    util::sum_n(self, rhs as u64)
                 }
             }
             ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
@@ -201,7 +201,7 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn mul(self, rhs: u64) -> $classname {
-                    util::sum_n(self,rhs)
+                    util::sum_n(self, rhs)
                 }
             }
 
@@ -405,11 +405,11 @@ macro_rules! fp31 {
                 type Output = Monty;
                 #[inline]
                 fn mul(self, rhs: u64) -> Monty {
-                    util::sum_n(self,rhs)
+                    util::sum_n(self, rhs)
                 }
             }
 
-            ///Note that this reveals the exponent, but nothing else. If you need constant time for the exponent, use 
+            ///Note that this reveals the exponent, but nothing else. If you need constant time for the exponent, use
             ///Pow<$classname>.
             impl Pow<u64> for Monty {
                 type Output = Monty;
@@ -811,7 +811,7 @@ macro_rules! fp31 {
                     *a = $classname::normalize_little_limbs(foo);
                 }
 
-                ///Negation (not mod prime) for a. Will only actulaly be performed if the ctl is true. Otherwise 
+                ///Negation (not mod prime) for a. Will only actulaly be performed if the ctl is true. Otherwise
                 ///perform the same bit access pattern, but don't negate.
                 #[inline]
                 fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
@@ -824,7 +824,7 @@ macro_rules! fp31 {
                         cc = aw >> 31;
                     }
                 }
-    
+
                 ///Finish modular reduction. Rules on input parameters:
                 /// if neg = 1, then -m <= a < 0
                 /// if neg = 0, then 0 <= a < 2*m
