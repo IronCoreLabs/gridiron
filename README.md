@@ -54,7 +54,7 @@ To use it, you'll need to import headers for the math operations you want. So, f
     let one = fp_256::Fp256::one();
     let two = one + one;
 
-This is a work in progress and we hope to make it more performant and constant time. All operations are constant time except:
+This is a work in progress and we hope to make it more performant. All operations are constant time except:
 
 `Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`. 
 The will be much slower and typically the u64s are not secret values so it's ok for them to be non constant time.
