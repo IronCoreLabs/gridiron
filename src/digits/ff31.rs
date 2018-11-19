@@ -11,6 +11,17 @@
 #[macro_export]
 macro_rules! fp31 {
     ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
+        /**
+         * Why 31 bit?
+         *
+         * 31 bit numbers allow us to work well in WASM as well as other 32 bit architectures with greater speed than 32 bits (or 64 bits). 
+         * This is because when you use only 31 bits you don't have to deal with carries that go outside the limb size as often. 
+         * This is explained very well by Thomas in his writeup in BearSSL (https://www.bearssl.org/bigint.html).
+         *
+         * We technically could go to something larger (like 62) if we only wanted to be fast on 64 bit machines, but this is the lowest common
+         * denominator, so we decided to start here. In the future it would be nice to allow the internal representation to be chosen
+         * based on compile-time flags instead.
+         */
         //Large portions of this file are ported from the i31 implementations in BearSSL.
         pub mod $modname {
             use num_traits::{Inv, One, Pow, Zero};
