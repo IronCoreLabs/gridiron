@@ -545,7 +545,6 @@ macro_rules! fp31 {
                     self.limbs = new_limbs;
                 }
 
-                ///Take the extra limb and incorporate that into the existing value by modding by the prime.
                 /// This normalize should only be used when the input is at most
                 /// 2*p-1. Anything that might be bigger should use the normalize_big
                 /// options, which use barrett.
@@ -556,6 +555,7 @@ macro_rules! fp31 {
                     limbs
                 }
 
+                /// See normalize_little_limbs.
                 #[inline]
                 pub fn normalize_little(mut self) -> Self {
                     self.normalize_assign_little();
