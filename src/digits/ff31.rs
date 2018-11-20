@@ -206,7 +206,7 @@ macro_rules! fp31 {
                     util::sum_n(self, rhs as u64)
                 }
             }
-            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
+            ///Note that this reveals the u64, but nothing else. It's expected that the u32 is not secret.
             ///If it is, you can use Mul<$classname>
             impl Mul<u64> for $classname {
                 type Output = $classname;
@@ -410,7 +410,7 @@ macro_rules! fp31 {
                 }
             }
 
-            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
+            ///Note that this reveals the u64, but nothing else. It's expected that the u32 is not secret.
             ///If it is, you can use Mul<$classname>
             impl Mul<u64> for Monty {
                 type Output = Monty;
@@ -1341,6 +1341,13 @@ macro_rules! fp31 {
                     fn monty_neg_works(a in arb_fp()) {
                         let aa = a.to_monty();
                         prop_assert_eq!(-a, -aa.to_norm())
+                    }
+                    #[test]
+                    fn monty_inv_same_as_div(a in arb_fp(), b in arb_fp()) {
+                        let div_result = a/b;
+                        let result = (a.to_monty() * b.inv().to_monty()).to_norm();
+
+                        prop_assert_eq!(div_result, result)
                     }
                 }
             }
