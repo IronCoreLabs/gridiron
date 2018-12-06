@@ -28,7 +28,6 @@ pub fn unsafe_convert_bytes_to_limbs_mut(src: &[u8], limbs: &mut [u32], len: usi
     }
     if acc_len != 0 {
         limbs[v] = acc;
-        // v += 1
     }
 }
 
@@ -45,7 +44,7 @@ pub fn u32_to_bytes_big_endian(x: u32, buf: &mut [u8]) {
 
 ///Sum t n times. Reveals the value of n.
 #[inline]
-pub(crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
+pub fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
     if n == 0 {
         Zero::zero()
     } else if n == 1 {
@@ -65,7 +64,7 @@ pub(crate) fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
 
 ///This reveals the exponent so it should not be called with secret values.
 #[inline]
-pub(crate) fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
+pub fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
     if nn == 0 {
         T::one()
     } else {
@@ -87,7 +86,7 @@ pub(crate) fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
 }
 
 #[inline]
-pub(crate) fn mul_add(a: u32, b: u32, c: u32) -> u64 {
+pub fn mul_add(a: u32, b: u32, c: u32) -> u64 {
     a as u64 * b as u64 + c as u64
 }
 

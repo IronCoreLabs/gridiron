@@ -61,6 +61,7 @@ macro_rules! fp31 {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
 
+            /// Allows iteration over the bit representation of $classname starting with the least significant bit first
             pub struct FpBitIter<'a, $classname: 'a> {
                 p: *const $classname,
                 index: usize,
@@ -534,6 +535,12 @@ macro_rules! fp31 {
             }
 
             impl $classname {
+                /// Return true if the $classname represents an even value.
+                pub fn is_even(&self) -> bool {
+                    let b: ConstantBool<u32> = Self::test_bit(&self.limbs, 0);
+                    b.0 == 0
+                }
+
                 ///Square the value. Same as a value times itself, but slightly more performant.
                 #[inline]
                 pub fn square(&self) -> $classname {
@@ -1151,7 +1158,7 @@ macro_rules! fp31 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::OsRng;
+                use rand::rngs::OsRng;
 
                 #[test]
                 fn default_is_zero() {
@@ -1348,6 +1355,11 @@ macro_rules! fp31 {
                         let result = (a.to_monty() * b.inv().to_monty()).to_norm();
 
                         prop_assert_eq!(div_result, result)
+                    }
+
+                    #[test]
+                    fn is_even_works_u64(a in any::<u64>()) {
+                        prop_assert_eq!(a % 2 == 0, $classname::from(a).is_even())
                     }
                 }
             }
