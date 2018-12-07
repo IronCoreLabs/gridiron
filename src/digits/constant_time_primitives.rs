@@ -3,7 +3,7 @@
  * https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/inner.h
  */
 
-use digits::constant_bool::*;
+use crate::digits::constant_bool::*;
 use num_traits::{NumOps, One, Zero};
 use std::cmp::Ordering;
 use std::mem::size_of;
