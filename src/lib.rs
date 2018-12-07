@@ -1,4 +1,4 @@
-use digits::util::unsafe_convert_bytes_to_limbs_mut;
+use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
 
 extern crate num_traits;
 #[cfg(test)]
@@ -366,7 +366,7 @@ mod lib {
 
     #[test]
     fn fp256_to_bytes_known_good_value() {
-        use fp_256::Fp256;
+        use crate::fp_256::Fp256;
         let fp = Fp256::from(255u32);
         let bytes = fp.to_bytes_array();
         let expected_result = {
@@ -379,7 +379,7 @@ mod lib {
 
     #[test]
     fn fp256_from_bytes_should_mod() {
-        use fp_256::Fp256;
+        use crate::fp_256::Fp256;
         let max_bytes = Fp256::from([255u8; 32]);
         let expected_result = Fp256::new([
             569862552, 1330030375, 2099849607, 220445046, 1739734497, 839018739, 1461584277,
