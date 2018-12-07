@@ -551,9 +551,10 @@ macro_rules! fp31 {
                 }
                 #[inline]
                 pub fn to_monty(self) -> Monty {
-                    Monty { limbs: self.limbs } * Monty {
-                        limbs: MONTRSQUARED,
-                    }
+                    Monty { limbs: self.limbs }
+                        * Monty {
+                            limbs: MONTRSQUARED,
+                        }
                 }
 
                 ///See normalize_little_limbs.
@@ -775,7 +776,7 @@ macro_rules! fp31 {
                     ctl: ConstantBool<u32>,
                 ) -> ConstantBool<u32> {
                     let mut cc = 0u32;
-                    for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
+                    for (aa, bb) in a.iter_mut().zip(b.iter()) {
                         let aw = *aa;
                         let bw = *bb;
                         let naw = aw.wrapping_add(bw).wrapping_add(cc);
@@ -793,7 +794,7 @@ macro_rules! fp31 {
                     ctl: ConstantBool<u32>,
                 ) -> ConstantBool<u32> {
                     let mut cc = 0u32;
-                    for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
+                    for (aa, bb) in a.iter_mut().zip(b.iter()) {
                         let aw = *aa;
                         let bw = *bb;
                         let naw = aw.wrapping_sub(bw).wrapping_sub(cc);
@@ -807,7 +808,7 @@ macro_rules! fp31 {
                 fn sub_assign_limbs_slice(a: &mut [u32], b: &[u32]) -> ConstantBool<u32> {
                     debug_assert!(a.len() == b.len());
                     let mut cc = 0u32;
-                    for (mut aa, bb) in a.iter_mut().zip(b.iter()) {
+                    for (aa, bb) in a.iter_mut().zip(b.iter()) {
                         let aw = *aa;
                         let bw = *bb;
                         let naw = aw.wrapping_sub(bw).wrapping_sub(cc);
@@ -835,7 +836,7 @@ macro_rules! fp31 {
                 fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
                     let mut cc = ctl.0;
                     let xm = ctl.0.wrapping_neg() >> 1;
-                    for mut ai in a.iter_mut() {
+                    for ai in a.iter_mut() {
                         let mut aw = *ai;
                         aw = (aw ^ xm) + cc;
                         *ai = aw & 0x7FFFFFFF;
