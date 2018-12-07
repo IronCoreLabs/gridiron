@@ -1,5 +1,4 @@
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
-
 extern crate num_traits;
 #[cfg(test)]
 extern crate rand;
@@ -37,9 +36,8 @@ fp31!(
         1662108208, 231227174, 1893732143, 1300610845, 325218135, 866248622, 1596183093,
         1288991726, 65539
     ],
-    // W = 31 (bytes)
     // montgomery R = 2^(W*N) where W = word size and N = limbs
-    //            R = 2^(31*16) = 2^496
+    //            R = 2^(16*31) = 2^496
     // montgomery R^-1 mod p
     // 540164672828597150601552066704871144340865164390233716165828766698348036766646674962138582407269471436938515957052715279568068096452253665449178
     [
@@ -78,9 +76,8 @@ fp31!(
         618474456, 1306750627, 1454330209, 2032300189, 1138536719, 1905629153, 1016481908,
         1139000707, 1048853973, 14943480
     ],
-    // W = 31 (bytes)
     // montgomery R = 2^(W*N) where W = word size and N = limbs
-    //            R = 2^(31*9) = 2^279
+    //            R = 2^(9*31) = 2^279
     // montgomery R^-1 mod p
     // 41128241662407537452081084990737892697811449013582128001435272241165411523443
     [
@@ -115,7 +112,6 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     }
 }
 
-/// Generic conversion to a 31-bit representation.
 pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
     let mut limbs = [0u32; 17];
     unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
