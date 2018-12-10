@@ -61,6 +61,7 @@ macro_rules! fp31 {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
 
+            /// Allows iteration over the bit representation of $classname starting with the least significant bit first
             pub struct FpBitIter<'a, $classname: 'a> {
                 p: *const $classname,
                 index: usize,
@@ -275,12 +276,12 @@ macro_rules! fp31 {
                     let mut x = self.limbs;
                     let mut y = rhs.limbs;
                     //Maybe we can do better here...
-                    if y.const_eq0().0 == ConstantBool::new_true().0 {
+                    if y.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
                         panic!("Division by 0 is not defined.");
                     }
 
                     let result = $classname::div_mod(&mut x, &mut y);
-                    if result.0 != ConstantBool::new_true().0 {
+                    if result.0 != ConstantBool::<u32>::new_true().0 {
                         panic!("Division not defined. This should not be allowed by our Fp types.");
                     }
 
@@ -1152,7 +1153,7 @@ macro_rules! fp31 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::OsRng;
+                use rand::rngs::OsRng;
 
                 #[test]
                 fn default_is_zero() {

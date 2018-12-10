@@ -12,7 +12,7 @@ license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
 
 [dependencies]
-num-traits = "0.2"
+num-traits = "~0.2"
 
 [profile.test]
 opt-level = 2
