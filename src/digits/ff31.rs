@@ -276,12 +276,12 @@ macro_rules! fp31 {
                     let mut x = self.limbs;
                     let mut y = rhs.limbs;
                     //Maybe we can do better here...
-                    if y.const_eq0().0 == ConstantBool::new_true().0 {
+                    if y.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
                         panic!("Division by 0 is not defined.");
                     }
 
                     let result = $classname::div_mod(&mut x, &mut y);
-                    if result.0 != ConstantBool::new_true().0 {
+                    if result.0 != ConstantBool::<u32>::new_true().0 {
                         panic!("Division not defined. This should not be allowed by our Fp types.");
                     }
 
