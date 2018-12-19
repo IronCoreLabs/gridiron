@@ -98,7 +98,7 @@ impl ConstantUnsignedPrimitives for $T {
     }
 }
 )+ }}
-constant_unsigned! { u64, u32 }
+constant_unsigned! { u128, u64, u32 }
 impl ConstantSignedPrimitives for i64 {
     #[inline]
     fn not(self) -> Self {

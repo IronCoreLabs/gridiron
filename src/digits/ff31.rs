@@ -10,7 +10,7 @@
 /// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
 #[macro_export]
 macro_rules! fp31 {
-    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
+    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $limbs_s: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr, $montgomery_m0_inv_2: expr) => {
         /**
          * Why 31 bit?
          *
@@ -41,11 +41,14 @@ macro_rules! fp31 {
             pub const PRIMEBITS: usize = $bits;
             pub const PRIMEBYTES: usize = PRIMEBITS / BITSPERBYTE;
             pub const NUMLIMBS: usize = $limbs;
+            pub const NUMLIMBS62: usize = $limbs_s;
+
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
             pub const BARRETTMU: [u32; NUMLIMBS + 1] = $barrettmu;
             pub const MONTRINV: [u32; NUMLIMBS] = $montgomery_r_inv;
             pub const MONTRSQUARED: [u32; NUMLIMBS] = $montgomery_r_squared;
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
+            pub const MONTM0INV2: u64 = $montgomery_m0_inv_2;
 
             #[derive(PartialEq, Eq, Ord, Clone, Copy)]
             pub struct $classname {
@@ -358,58 +361,199 @@ macro_rules! fp31 {
                 }
             }
 
+            pub fn sixty_two_to_thirty_one(limbs: [u64; NUMLIMBS62]) -> [u32; NUMLIMBS] {
+                let mut other_idx = 0;
+                let mut result = [0u32; NUMLIMBS];
+                for limb in limbs.iter() {
+                    result[other_idx] = (limb & 0x7FFFFFFF) as u32;
+                    other_idx = other_idx + 1;
+                    if other_idx != NUMLIMBS {
+                        result[other_idx] = (limb >> 31) as u32;
+                        other_idx = other_idx + 1;
+                    }
+                }
+                result
+            }
+
+            pub fn thirty_one_to_sixty_two(limbs: [u32; NUMLIMBS]) -> [u64; NUMLIMBS62] {
+                let mut result = [0u64; NUMLIMBS62];
+                let mut u = 0;
+                let mut v = 0;
+                while u < NUMLIMBS {
+                    if (u + 1) == NUMLIMBS {
+                        result[v] = limbs[u] as u64;
+                    } else {
+                        result[v] = limbs[u] as u64 | (limbs[u + 1] as u64) << 31;
+                    }
+                    u = u + 2;
+                    v = v + 1;
+                }
+                result
+            }
+
             impl Mul<Monty> for Monty {
                 type Output = Monty;
 
                 #[inline]
                 fn mul(self, rhs: Monty) -> Monty {
                     // Constant time montgomery mult from https://www.bearssl.org/bigint.html
-                    let a = self.limbs;
-                    let b = rhs.limbs;
-                    let mut d = [0u32; NUMLIMBS]; // result
-                    let mut dh = 0u64; // can be up to 2W
-                    for i in 0..NUMLIMBS {
+                    let a = thirty_one_to_sixty_two(self.limbs);
+                    let b = thirty_one_to_sixty_two(rhs.limbs);
+                    let prime_62 = thirty_one_to_sixty_two(PRIME);
+                    let mut d = [0u64; NUMLIMBS62]; // result
+                    let mut dh = 0u128; // can be up to 2W
+                    for i in 0..NUMLIMBS62 {
                         // f←(d[0]+a[i]b[0])g mod W
                         // g is MONTM0INV, W is word size
                         // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
                         // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
-                        let f: u32 = $classname::mul_31_lo(
-                            d[0] + $classname::mul_31_lo(a[i], b[0]),
-                            MONTM0INV,
+                        let f: u64 = $classname::mul_62_lo(
+                            d[0] + $classname::mul_62_lo(a[i], b[0]),
+                            MONTM0INV2,
                         );
-                        let mut z: u64; // can be up to 2W^2
-                        let mut c: u64; // can be up to 2W
+                        let mut z: u128; // can be up to 2W^2
+                        let mut c: u128; // can be up to 2W
                         let ai = a[i];
 
-                        z = (ai as u64 * b[0] as u64)
-                            + (d[0] as u64)
-                            + (f as u64 * PRIME[0] as u64);
-                        c = z >> 31;
-                        for j in 1..NUMLIMBS {
+                        z = (ai as u128 * b[0] as u128)
+                            + (d[0] as u128)
+                            + (f as u128 * prime_62[0] as u128);
+                        c = z >> 62;
+                        for j in 1..NUMLIMBS62 {
                             // z ← d[j]+a[i]b[j]+fm[j]+c
-                            z = (ai as u64 * b[j] as u64)
-                                + (d[j] as u64)
-                                + (f as u64 * PRIME[j] as u64)
+                            z = (ai as u128 * b[j] as u128)
+                                + (d[j] as u128)
+                                + (f as u128 * prime_62[j] as u128)
                                 + c;
                             // c ← ⌊z/W⌋
-                            c = z >> 31;
+                            c = z >> 62;
                             // If j>0, set: d[j−1] ← z mod W
-                            d[j - 1] = (z & 0x7FFFFFFF) as u32;
+                            d[j - 1] = (z & 0x3FFFFFFFFFFFFFFF) as u64;
+                            println!("d on iteration {:?} {:?}", j, sixty_two_to_thirty_one(d));
                         }
                         // z ← dh+c
                         z = dh + c;
                         // d[N−1] ← z mod W
-                        d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
+                        d[NUMLIMBS62 - 1] = (z & 0x3FFFFFFFFFFFFFFF) as u64;
                         // dh ← ⌊z/W⌋
-                        dh = z >> 31;
+                        dh = z >> 62;
                     }
-
+                    println!("{:?}", d);
+                    let mut d_final = sixty_two_to_thirty_one(d);
                     // if dh≠0 or d≥m, set: d←d−m
-                    let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
-                    $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
-                    Monty { limbs: d }
+                    println!("{:?}", dh);
+                    println!("{:?}", d_final.const_gt(PRIME));
+                    println!("d final before {:?}", d_final);
+                    let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d_final.const_gt(PRIME);
+                    println!("dosub {:?}", dosub);
+                    $classname::sub_assign_limbs_if(&mut d_final, PRIME, dosub);
+                    println!("d final {:?}", d_final);
+                    Monty { limbs: d_final }
                 }
             }
+
+
+            fn monty_mul_31(s:Monty, rhs: Monty) -> Monty {
+                // Constant time montgomery mult from https://www.bearssl.org/bigint.html
+                let a = s.limbs;
+                let b = rhs.limbs;
+                let mut d = [0u32; NUMLIMBS]; // result
+                let mut dh = 0u64; // can be up to 2W
+                for i in 0..NUMLIMBS {
+                    // f←(d[0]+a[i]b[0])g mod W
+                    // g is MONTM0INV, W is word size
+                    // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
+                    // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
+                    let f: u32 = $classname::mul_31_lo(
+                        d[0] + $classname::mul_31_lo(a[i], b[0]),
+                        MONTM0INV,
+                    );
+                    let mut z: u64; // can be up to 2W^2
+                    let mut c: u64; // can be up to 2W
+                    let ai = a[i];
+
+                    z = (ai as u64 * b[0] as u64)
+                        + (d[0] as u64)
+                        + (f as u64 * PRIME[0] as u64);
+                    c = z >> 31;
+                    for j in 1..NUMLIMBS {
+                        // z ← d[j]+a[i]b[j]+fm[j]+c
+                        z = (ai as u64 * b[j] as u64)
+                            + (d[j] as u64)
+                            + (f as u64 * PRIME[j] as u64)
+                            + c;
+                        // c ← ⌊z/W⌋
+                        c = z >> 31;
+                        // If j>0, set: d[j−1] ← z mod W
+                        d[j - 1] = (z & 0x7FFFFFFF) as u32;
+                        println!("31BIT - d on iteration {:?} {:?}", j,d);
+                    }
+                    // z ← dh+c
+                    z = dh + c;
+                    // d[N−1] ← z mod W
+                    d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
+                    // dh ← ⌊z/W⌋
+                    dh = z >> 31;
+                }
+
+                // if dh≠0 or d≥m, set: d←d−m
+                let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
+                $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
+                Monty { limbs: d }
+            }
+
+            // impl Mul<Monty> for Monty {
+            //     type Output = Monty;
+
+            //     #[inline]
+            //     fn mul(self, rhs: Monty) -> Monty {
+            //         // Constant time montgomery mult from https://www.bearssl.org/bigint.html
+            //         let a = self.limbs;
+            //         let b = rhs.limbs;
+            //         let mut d = [0u32; NUMLIMBS]; // result
+            //         let mut dh = 0u64; // can be up to 2W
+            //         for i in 0..NUMLIMBS {
+            //             // f←(d[0]+a[i]b[0])g mod W
+            //             // g is MONTM0INV, W is word size
+            //             // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
+            //             // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
+            //             let f: u32 = $classname::mul_31_lo(
+            //                 d[0] + $classname::mul_31_lo(a[i], b[0]),
+            //                 MONTM0INV,
+            //             );
+            //             let mut z: u64; // can be up to 2W^2
+            //             let mut c: u64; // can be up to 2W
+            //             let ai = a[i];
+
+            //             z = (ai as u64 * b[0] as u64)
+            //                 + (d[0] as u64)
+            //                 + (f as u64 * PRIME[0] as u64);
+            //             c = z >> 31;
+            //             for j in 1..NUMLIMBS {
+            //                 // z ← d[j]+a[i]b[j]+fm[j]+c
+            //                 z = (ai as u64 * b[j] as u64)
+            //                     + (d[j] as u64)
+            //                     + (f as u64 * PRIME[j] as u64)
+            //                     + c;
+            //                 // c ← ⌊z/W⌋
+            //                 c = z >> 31;
+            //                 // If j>0, set: d[j−1] ← z mod W
+            //                 d[j - 1] = (z & 0x7FFFFFFF) as u32;
+            //             }
+            //             // z ← dh+c
+            //             z = dh + c;
+            //             // d[N−1] ← z mod W
+            //             d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
+            //             // dh ← ⌊z/W⌋
+            //             dh = z >> 31;
+            //         }
+
+            //         // if dh≠0 or d≥m, set: d←d−m
+            //         let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
+            //         $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
+            //         Monty { limbs: d }
+            //     }
+            // }
 
             ///Note that this reveals the u64, but nothing else. It's expected that the u32 is not secret.
             ///If it is, you can use Mul<$classname>
@@ -815,6 +959,11 @@ macro_rules! fp31 {
                 #[inline]
                 fn mul_31_lo(x: u32, y: u32) -> u32 {
                     (x as u64 * y as u64) as u32 & 0x7FFFFFFFu32
+                }
+
+                #[inline]
+                fn mul_62_lo(x: u64, y: u64) -> u64 {
+                    (x as u128 * y as u128) as u64 & 0x3FFFFFFFFFFFFFFF
                 }
 
                 #[inline]

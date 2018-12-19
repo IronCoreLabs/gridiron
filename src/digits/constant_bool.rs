@@ -10,7 +10,7 @@ use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Neg, Not};
  * https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/inner.h
  */
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ConstantBool<T: NumOps + Copy>(pub T);
 
 macro_rules! constantbool_from_impl {

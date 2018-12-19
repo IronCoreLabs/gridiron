@@ -5,6 +5,7 @@ extern crate num_traits;
 extern crate rand;
 
 use criterion::{black_box, Criterion};
+use gridiron::digits::util::unsafe_convert_bytes_to_limbs_mut;
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
@@ -12,10 +13,17 @@ use rand::{RngCore, ThreadRng};
 use std::ops::Neg;
 
 fn criterion_benchmark(c: &mut Criterion) {
+    fn gen_random_64_bytes(rng: &mut ThreadRng) -> [u8; 64] {
+        let mut bytes = [0u8; 64];
+        for b in bytes.iter_mut() {
+            *b = rng.next_u32() as u8;
+        }
+        bytes
+    }
     fn gen_rand_limbs(rng: &mut ThreadRng) -> [u32; fp_256::NUMLIMBS] {
         let mut limbs = [0u32; fp_256::NUMLIMBS];
         for limb in limbs.iter_mut() {
-            *limb = rng.next_u32();
+            *limb = rng.next_u32() & 0x7FFFFFFF;
         }
         limbs
     }
@@ -23,7 +31,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     fn gen_rand_double_limbs(rng: &mut ThreadRng) -> [u32; 2 * fp_256::NUMLIMBS] {
         let mut limbs = [0u32; 2 * fp_256::NUMLIMBS];
         for limb in limbs.iter_mut() {
-            *limb = rng.next_u32();
+            *limb = rng.next_u32() & 0x7FFFFFFF;
         }
         limbs
     }
@@ -33,24 +41,27 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
 
     fn gen_rand_fp256(rng: &mut ThreadRng) -> fp_256::Fp256 {
-        (gen_rand_fp256_raw(rng)).normalize_big(0)
+        (gen_rand_fp256_raw(rng)).normalize_little()
     }
 
-    fn gen_rand_480_limbs(rng: &mut ThreadRng) -> [u32; fp_480::NUMLIMBS] {
-        let mut limbs = [0u32; fp_480::NUMLIMBS];
-        for limb in limbs.iter_mut() {
-            *limb = rng.next_u32();
-        }
-        limbs[fp_480::NUMLIMBS - 1] &= 0xFFFF;
-        limbs
-    }
+    // fn gen_rand_480_limbs(rng: &mut ThreadRng) -> [u32; fp_480::NUMLIMBS] {
+    //     let mut limbs = [0u32; fp_480::NUMLIMBS];
+    //     for limb in limbs.iter_mut() {
+    //         *limb = rng.next_u32();
+    //     }
+    //     limbs[fp_480::NUMLIMBS - 1] &= 0xFFFF;
+    //     limbs
+    // }
 
-    fn gen_rand_fp480_raw(rng: &mut ThreadRng) -> fp_480::Fp480 {
-        fp_480::Fp480::new(gen_rand_480_limbs(rng))
-    }
+    // fn gen_rand_fp480_raw(rng: &mut ThreadRng) -> fp_480::Fp480 {
+    //     fp_480::Fp480::new(gen_rand_480_limbs(rng))
+    // }
 
     fn gen_rand_fp480(rng: &mut ThreadRng) -> fp_480::Fp480 {
-        (gen_rand_fp480_raw(rng)).normalize_big(0)
+        let src = gen_random_64_bytes(rng);
+        let mut limbs = [0u32; 32];
+        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs))
     }
 
     c.bench_function("Fp256 - normalize (256 bits to Fp256 100 times)", |bench| {
@@ -59,7 +70,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             || gen_rand_fp256_raw(&mut rng),
             |val_to_norm| {
                 for _ in 0..100 {
-                    black_box(val_to_norm.normalize_big(0));
+                    black_box(val_to_norm.normalize_little());
                 }
             },
         );
@@ -241,17 +252,17 @@ fn criterion_benchmark(c: &mut Criterion) {
             },
         );
     });
-    c.bench_function("Fp480 - normalize (480 bits to Fp480 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp480_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_big(0));
-                }
-            },
-        );
-    });
+    // c.bench_function("Fp480 - normalize (480 bits to Fp480 100 times)", |bench| {
+    //     let mut rng = rand::thread_rng();
+    //     bench.iter_with_setup(
+    //         || gen_rand_fp480_raw(&mut rng),
+    //         |val_to_norm| {
+    //             for _ in 0..100 {
+    //                 black_box(val_to_norm.normalize_big(0));
+    //             }
+    //         },
+    //     );
+    // });
 
     c.bench_function("Fp256 - Monty - to_monty 100 times", |bench| {
         let mut rng = rand::thread_rng();
