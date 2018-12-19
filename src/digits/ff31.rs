@@ -445,56 +445,6 @@ macro_rules! fp31 {
                 }
             }
 
-
-            fn monty_mul_31(s:Monty, rhs: Monty) -> Monty {
-                // Constant time montgomery mult from https://www.bearssl.org/bigint.html
-                let a = s.limbs;
-                let b = rhs.limbs;
-                let mut d = [0u32; NUMLIMBS]; // result
-                let mut dh = 0u64; // can be up to 2W
-                for i in 0..NUMLIMBS {
-                    // f←(d[0]+a[i]b[0])g mod W
-                    // g is MONTM0INV, W is word size
-                    // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
-                    // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
-                    let f: u32 = $classname::mul_31_lo(
-                        d[0] + $classname::mul_31_lo(a[i], b[0]),
-                        MONTM0INV,
-                    );
-                    let mut z: u64; // can be up to 2W^2
-                    let mut c: u64; // can be up to 2W
-                    let ai = a[i];
-
-                    z = (ai as u64 * b[0] as u64)
-                        + (d[0] as u64)
-                        + (f as u64 * PRIME[0] as u64);
-                    c = z >> 31;
-                    for j in 1..NUMLIMBS {
-                        // z ← d[j]+a[i]b[j]+fm[j]+c
-                        z = (ai as u64 * b[j] as u64)
-                            + (d[j] as u64)
-                            + (f as u64 * PRIME[j] as u64)
-                            + c;
-                        // c ← ⌊z/W⌋
-                        c = z >> 31;
-                        // If j>0, set: d[j−1] ← z mod W
-                        d[j - 1] = (z & 0x7FFFFFFF) as u32;
-                        println!("31BIT - d on iteration {:?} {:?}", j,d);
-                    }
-                    // z ← dh+c
-                    z = dh + c;
-                    // d[N−1] ← z mod W
-                    d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
-                    // dh ← ⌊z/W⌋
-                    dh = z >> 31;
-                }
-
-                // if dh≠0 or d≥m, set: d←d−m
-                let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
-                $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
-                Monty { limbs: d }
-            }
-
             // impl Mul<Monty> for Monty {
             //     type Output = Monty;
 
@@ -672,16 +622,13 @@ macro_rules! fp31 {
             }
 
             impl $classname {
-                ///Square the value. Same as a value times itself, but slightly more performant.
+                ///Square the value. Same as a value times itself. Could be made more performant
                 #[inline]
                 pub fn square(&self) -> $classname {
-                    let doublesize = $classname::mul_limbs_classic(&self.limbs, &self.limbs);
-                    $classname {
-                        limbs: $classname::reduce_barrett(&doublesize),
-                    }
+                    *self * self.to_monty()
                 }
                 #[inline]
-                pub fn to_monty(self) -> Monty {
+                pub fn to_monty(&self) -> Monty {
                     Monty { limbs: self.limbs }
                         * Monty {
                             limbs: MONTRSQUARED,
@@ -776,28 +723,6 @@ macro_rules! fp31 {
                         .iter()
                         .for_each(|byte| ret.push_str(&format!("{:02x}", byte)));
                     ret
-                }
-
-                // From Handbook of Applied Crypto algo 14.12
-                #[inline]
-                fn mul_limbs_classic(
-                    a: &[u32; NUMLIMBS],
-                    b: &[u32; NUMLIMBS],
-                ) -> [u32; NUMDOUBLELIMBS] {
-                    let mut res = [0u32; NUMDOUBLELIMBS];
-                    for i in 0..NUMLIMBS {
-                        let mut c = 0u32;
-                        for j in 0..NUMLIMBS {
-                            // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = util::split_u64_to_31b(
-                                util::mul_add(a[j], b[i], res[i + j]) + c as u64,
-                            );
-                            res[i + j] = v;
-                            c = u;
-                        }
-                        res[i + NUMLIMBS] = c;
-                    }
-                    res
                 }
 
                 #[inline]
