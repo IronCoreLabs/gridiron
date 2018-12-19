@@ -429,7 +429,6 @@ macro_rules! fp31 {
                             c = z >> 62;
                             // If j>0, set: d[j−1] ← z mod W
                             d[j - 1] = (z & 0x3FFFFFFFFFFFFFFF) as u64;
-                            println!("d on iteration {:?} {:?}", j, sixty_two_to_thirty_one(d));
                         }
                         // z ← dh+c
                         z = dh + c;
@@ -438,16 +437,10 @@ macro_rules! fp31 {
                         // dh ← ⌊z/W⌋
                         dh = z >> 62;
                     }
-                    println!("{:?}", d);
                     let mut d_final = sixty_two_to_thirty_one(d);
                     // if dh≠0 or d≥m, set: d←d−m
-                    println!("{:?}", dh);
-                    println!("{:?}", d_final.const_gt(PRIME));
-                    println!("d final before {:?}", d_final);
                     let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d_final.const_gt(PRIME);
-                    println!("dosub {:?}", dosub);
                     $classname::sub_assign_limbs_if(&mut d_final, PRIME, dosub);
-                    println!("d final {:?}", d_final);
                     Monty { limbs: d_final }
                 }
             }
