@@ -22,7 +22,7 @@ macro_rules! constantbool_from_impl {
         }
     )*)
 }
-constantbool_from_impl! { i32 i64 u32 u64 }
+constantbool_from_impl! { u32 u64 }
 
 impl<T: NumOps + Copy + BitXor<Output = T> + One> Not for ConstantBool<T> {
     type Output = Self;
@@ -54,6 +54,14 @@ impl<T: NumOps + Copy + BitOr<Output = T>> BitOr for ConstantBool<T> {
     #[inline]
     fn bitor(self, rhs: Self) -> Self {
         ConstantBool(self.0 | rhs.0)
+    }
+}
+
+impl<T: NumOps + Copy + BitXor<Output = T>> BitXor for ConstantBool<T> {
+    type Output = Self;
+    #[inline]
+    fn bitxor(self, rhs: Self) -> Self {
+        ConstantBool(self.0 ^ rhs.0)
     }
 }
 
@@ -91,8 +99,12 @@ where
     pub fn not_zero(i: T) -> Self {
         ConstantBool(Self::is_zero(i).0 ^ <T>::one())
     }
-
+    #[inline]
     pub fn new_true() -> Self {
         ConstantBool(<T>::one())
+    }
+    #[inline]
+    pub fn new_false() -> Self {
+        ConstantBool(<T>::zero())
     }
 }
