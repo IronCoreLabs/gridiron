@@ -13,10 +13,10 @@ use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 ///
 ///Values which support swapping the values in place.
 ///
-pub trait ConstantSwap{
+pub trait ConstantSwap {
     ///Swapping the values if the swap was true. Note that this should be done in a constant
     ///time way to support constant time algorithms.
-    fn swap_if(&mut self, other:&mut Self, swap:ConstantBool<u32>);
+    fn swap_if(&mut self, other: &mut Self, swap: ConstantBool<u32>);
 }
 
 pub trait ConstantUnsignedPrimitives

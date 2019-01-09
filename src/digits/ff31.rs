@@ -99,7 +99,7 @@ macro_rules! fp31 {
             impl ConstantSwap for $classname {
                 ///Swaps this with other if the value was true
                 #[inline]
-                fn swap_if(&mut self, other:&mut $classname, swap:ConstantBool<u32>) {
+                fn swap_if(&mut self, other: &mut $classname, swap: ConstantBool<u32>) {
                     let self_limbs = self.limbs;
                     self.limbs.const_copy_if(&other.limbs, swap);
                     other.limbs.const_copy_if(&self_limbs, swap);
@@ -1177,7 +1177,7 @@ macro_rules! fp31 {
                     let mut second = $classname::one();
                     first.swap_if(&mut second, ConstantBool::new_true());
                     assert_eq!(first, $classname::one());
-                    assert_eq!(second, $classname::zero());                      
+                    assert_eq!(second, $classname::zero());
                 }
 
                 #[test]
@@ -1186,7 +1186,7 @@ macro_rules! fp31 {
                     let mut second = $classname::one();
                     first.swap_if(&mut second, !ConstantBool::new_true());
                     assert_eq!(first, $classname::zero());
-                    assert_eq!(second, $classname::one());                      
+                    assert_eq!(second, $classname::one());
                 }
 
                 prop_compose! {
