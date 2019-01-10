@@ -96,6 +96,16 @@ macro_rules! fp31 {
                 }
             }
 
+            impl ConstantSwap for $classname {
+                ///Swaps this with other if the value was true
+                #[inline]
+                fn swap_if(&mut self, other: &mut $classname, swap: ConstantBool<u32>) {
+                    let self_limbs = self.limbs;
+                    self.limbs.const_copy_if(&other.limbs, swap);
+                    other.limbs.const_copy_if(&self_limbs, swap);
+                }
+            }
+
             impl fmt::Debug for $classname {
                 fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                     write!(f, "{}(", stringify!($classname))?;
@@ -1154,10 +1164,29 @@ macro_rules! fp31 {
                 // use limb_math;
                 use proptest::prelude::*;
                 use rand::rngs::OsRng;
+                use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]
                 fn default_is_zero() {
                     assert_eq!($classname::zero(), $classname::default())
+                }
+
+                #[test]
+                fn swap_if_constant_true() {
+                    let mut first = $classname::zero();
+                    let mut second = $classname::one();
+                    first.swap_if(&mut second, ConstantBool::new_true());
+                    assert_eq!(first, $classname::one());
+                    assert_eq!(second, $classname::zero());
+                }
+
+                #[test]
+                fn swap_if_constant_false() {
+                    let mut first = $classname::zero();
+                    let mut second = $classname::one();
+                    first.swap_if(&mut second, !ConstantBool::new_true());
+                    assert_eq!(first, $classname::zero());
+                    assert_eq!(second, $classname::one());
                 }
 
                 prop_compose! {
