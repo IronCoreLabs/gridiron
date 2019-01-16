@@ -44,7 +44,7 @@ pub fn u32_to_bytes_big_endian(x: u32, buf: &mut [u8]) {
 
 ///Sum t n times. Reveals the value of n.
 #[inline]
-pub fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
+pub fn sum_n<T: Zero + Copy>(mut t: T, n: u32) -> T {
     if n == 0 {
         Zero::zero()
     } else if n == 1 {
@@ -64,13 +64,12 @@ pub fn sum_n<T: Zero + Copy>(mut t: T, n: u64) -> T {
 
 ///This reveals the exponent so it should not be called with secret values.
 #[inline]
-pub fn exp_by_squaring<T: One + Copy>(orig_x: T, nn: u64) -> T {
-    if nn == 0 {
+pub fn exp_by_squaring<T: One + Copy>(orig_x: T, mut n: u32) -> T {
+    if n == 0 {
         T::one()
     } else {
         let mut y = T::one();
         let mut x = orig_x;
-        let mut n = nn;
         while n > 1 {
             if (n & 1) == 0 {
                 x = x * x;
