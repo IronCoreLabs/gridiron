@@ -214,15 +214,6 @@ macro_rules! fp31 {
                 type Output = $classname;
                 #[inline]
                 fn mul(self, rhs: u32) -> $classname {
-                    util::sum_n(self, rhs as u64)
-                }
-            }
-            ///Note that this reveals the u64, but nothing else. It's expected that the u32 is not secret.
-            ///If it is, you can use Mul<$classname>
-            impl Mul<u64> for $classname {
-                type Output = $classname;
-                #[inline]
-                fn mul(self, rhs: u64) -> $classname {
                     util::sum_n(self, rhs)
                 }
             }
@@ -245,10 +236,10 @@ macro_rules! fp31 {
             }
 
             ///Reveals the exponent. If you need constant time, use Pow<$classname>
-            impl Pow<u64> for $classname {
+            impl Pow<u32> for $classname {
                 type Output = $classname;
                 #[inline]
-                fn pow(self, rhs: u64) -> $classname {
+                fn pow(self, rhs: u32) -> $classname {
                     util::exp_by_squaring(self, rhs)
                 }
             }
@@ -421,22 +412,22 @@ macro_rules! fp31 {
                 }
             }
 
-            ///Note that this reveals the u64, but nothing else. It's expected that the u32 is not secret.
+            ///Note that this reveals the u32, but nothing else. It's expected that the u32 is not secret.
             ///If it is, you can use Mul<$classname>
-            impl Mul<u64> for Monty {
+            impl Mul<u32> for Monty {
                 type Output = Monty;
                 #[inline]
-                fn mul(self, rhs: u64) -> Monty {
+                fn mul(self, rhs: u32) -> Monty {
                     util::sum_n(self, rhs)
                 }
             }
 
             ///Note that this reveals the exponent, but nothing else. If you need constant time for the exponent, use
             ///Pow<$classname>.
-            impl Pow<u64> for Monty {
+            impl Pow<u32> for Monty {
                 type Output = Monty;
                 #[inline]
-                fn pow(self, rhs: u64) -> Monty {
+                fn pow(self, rhs: u32) -> Monty {
                     util::exp_by_squaring(self, rhs)
                 }
             }
@@ -1271,8 +1262,8 @@ macro_rules! fp31 {
 
                     #[test]
                     fn add_equals_mult(a in arb_fp()) {
-                        prop_assert_eq!(a + a, a * 2u64);
-                        prop_assert_eq!(a + a + a, a * 3u64);
+                        prop_assert_eq!(a + a, a * 2u32);
+                        prop_assert_eq!(a + a + a, a * 3u32);
                     }
 
                     #[test]
