@@ -573,11 +573,7 @@ macro_rules! fp31 {
             impl One for Monty {
                 #[inline]
                 fn one() -> Self {
-                    let mut ret = $classname {
-                        limbs: [0u32; NUMLIMBS],
-                    };
-                    ret.limbs[0] = 1u32;
-                    ret.to_monty() //COLT: This is horribly inefficient
+                    $classname::one().to_monty() //this is horribly inefficient, but I don't know of a way to compute it without making the macro even uglier.
                 }
 
                 #[inline]
@@ -1438,7 +1434,7 @@ macro_rules! fp31 {
                         prop_assert_eq!(result.to_norm(), a + b)
                     }
 
-                                        #[test]
+                    #[test]
                     fn monty_one_is_mul_ident(a in arb_fp(), b in arb_fp()) {
                         let result = a.to_monty() * Monty::one() * b.to_monty();
 
