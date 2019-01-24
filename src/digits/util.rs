@@ -55,7 +55,7 @@ pub fn sum_n<T: Zero + Copy>(mut t: T, n: u32) -> T {
         while k != 1 {
             let x = if (k & 1) == 1 { t + extra } else { extra };
             t = t + t;
-            k = k >> 1;
+            k >>= 1;
             extra = x;
         }
         t + extra
@@ -92,7 +92,7 @@ pub fn mul_add(a: u32, b: u32, c: u32) -> u64 {
 /// Returns array with least sig in pos 0 and carry in pos 2
 #[inline]
 pub fn split_u64_to_31b_array(i: u64) -> [u32; 3] {
-    let mut res = [032; 3];
+    let mut res = [0u32; 3];
     res[0] = (i & 0x7FFFFFFF) as u32;
     res[1] = ((i >> 31) & 0x7FFFFFFF) as u32;
     res[2] = (i >> 62) as u32;

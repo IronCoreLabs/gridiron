@@ -275,13 +275,13 @@ macro_rules! fp31 {
                 #[inline]
                 fn div(self, rhs: $classname) -> $classname {
                     let mut x = self.limbs;
-                    let mut y = rhs.limbs;
+                    let y = rhs.limbs;
                     //Maybe we can do better here...
                     if y.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
                         panic!("Division by 0 is not defined.");
                     }
 
-                    let result = $classname::div_mod(&mut x, &mut y);
+                    let result = $classname::div_mod(&mut x, &y);
                     if result.0 != ConstantBool::<u32>::new_true().0 {
                         panic!("Division not defined. This should not be allowed by our Fp types.");
                     }
@@ -319,9 +319,7 @@ macro_rules! fp31 {
                 fn from(src: u64) -> Self {
                     let mut ret = $classname::zero();
                     let bytes = util::split_u64_to_31b_array(src);
-                    for i in 0..3 {
-                        ret.limbs[i] = bytes[i];
-                    }
+                    ret.limbs[..3].copy_from_slice(&bytes[..3]);
                     ret
                 }
             }
@@ -703,9 +701,9 @@ macro_rules! fp31 {
                     // q1 * BARRETTMU
                     // BARRETTMU is NUMLIMBS + 1
                     let mut q2 = [0u32; 2 * NUMLIMBS + 2];
-                    for i in 0..NUMLIMBS + 1 {
+                    for i in 0..=NUMLIMBS {
                         let mut c = 0u32;
-                        for j in 0..NUMLIMBS + 1 {
+                        for j in 0..=NUMLIMBS {
                             // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
                             let (u, v) = util::split_u64_to_31b(
                                 util::mul_add(q1[j], BARRETTMU[i], q2[i + j]) + c as u64,
@@ -718,7 +716,7 @@ macro_rules! fp31 {
 
                     // q3←⌊q2/bk+1⌋
                     let mut q3 = [0u32; NUMLIMBS];
-                    q3.copy_from_slice(&q2[NUMLIMBS + 1..NUMDOUBLELIMBS + 1]);
+                    q3.copy_from_slice(&q2[NUMLIMBS + 1..=NUMDOUBLELIMBS]);
 
                     // r1←x mod bk+1
                     let mut r1 = [0u32; NUMLIMBS + 2];
@@ -820,9 +818,9 @@ macro_rules! fp31 {
 
                 #[inline]
                 fn cond_negate_mod_prime(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
-                    let mut foo = PRIME;
-                    $classname::sub_assign_limbs_if(&mut foo, *a, ctl);
-                    *a = $classname::normalize_little_limbs(foo);
+                    let mut p = PRIME;
+                    $classname::sub_assign_limbs_if(&mut p, *a, ctl);
+                    *a = $classname::normalize_little_limbs(p);
                 }
 
                 ///Negation (not mod prime) for a. Will only actulaly be performed if the ctl is true. Otherwise
