@@ -56,7 +56,7 @@ macro_rules! fp31 {
             ///as the conversion to Montgomery form + multiplication is as fast as normal multiplication + reduction.
             ///
             ///If you are doing more than 1 multiplication, it's clearly a win.
-            #[derive(PartialEq, Eq, Ord, Clone, Copy)]
+            #[derive(Debug, PartialEq, Eq, Ord, Clone, Copy)]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
@@ -100,6 +100,16 @@ macro_rules! fp31 {
                 ///Swaps this with other if the value was true
                 #[inline]
                 fn swap_if(&mut self, other: &mut $classname, swap: ConstantBool<u32>) {
+                    let self_limbs = self.limbs;
+                    self.limbs.const_copy_if(&other.limbs, swap);
+                    other.limbs.const_copy_if(&self_limbs, swap);
+                }
+            }
+
+            impl ConstantSwap for Monty {
+                ///Swaps this with other if the value was true
+                #[inline]
+                fn swap_if(&mut self, other: &mut Monty, swap: ConstantBool<u32>) {
                     let self_limbs = self.limbs;
                     self.limbs.const_copy_if(&other.limbs, swap);
                     other.limbs.const_copy_if(&self_limbs, swap);
@@ -342,6 +352,13 @@ macro_rules! fp31 {
                 }
             }
 
+            impl Default for Monty {
+                #[inline]
+                fn default() -> Self {
+                    Zero::zero()
+                }
+            }
+
             impl Monty {
                 ///Bring the montgomery form back into the $classname.
                 pub fn to_norm(self) -> $classname {
@@ -354,7 +371,7 @@ macro_rules! fp31 {
 
                 ///Constructor. Note that this is unsafe if the limbs happen to be greater than your PRIME.
                 ///In that case you should use conversion to byte arrays or manually do the math on the limbs yourself.
-                pub(crate) fn new(limbs: [u32; NUMLIMBS]) -> Monty {
+                pub fn new(limbs: [u32; NUMLIMBS]) -> Monty {
                     Monty { limbs }
                 }
             }
@@ -432,6 +449,20 @@ macro_rules! fp31 {
                 }
             }
 
+            impl From<u8> for Monty {
+                fn from(src: u8) -> Self {
+                    let mut result = $classname::zero();
+                    result.limbs[0] = src as u32;
+                    result.to_monty()
+                }
+            }
+
+            impl From<u32> for Monty {
+                fn from(src: u32) -> Self {
+                    $classname::from(src).to_monty()
+                }
+            }
+
             impl Mul<$classname> for Monty {
                 type Output = $classname;
 
@@ -498,6 +529,26 @@ macro_rules! fp31 {
                 }
             }
 
+            impl Inv for Monty {
+                type Output = Monty;
+                #[inline]
+                fn inv(self) -> Monty {
+                    $classname::one().div(self.to_norm()).to_monty()
+                }
+            }
+
+            impl Div for Monty {
+                type Output = Monty;
+                #[inline]
+                fn div(self, rhs: Monty) -> Monty {
+                    //Maybe we can do better here...
+                    if rhs.limbs.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
+                        panic!("Division by 0 is not defined.");
+                    }
+                    (self * rhs.to_norm().inv()).to_monty()
+                }
+            }
+
             impl PartialOrd for Monty {
                 #[inline]
                 fn partial_cmp(&self, other: &Monty) -> Option<Ordering> {
@@ -522,11 +573,11 @@ macro_rules! fp31 {
             impl One for Monty {
                 #[inline]
                 fn one() -> Self {
-                    let mut ret = Monty {
+                    let mut ret = $classname {
                         limbs: [0u32; NUMLIMBS],
                     };
                     ret.limbs[0] = 1u32;
-                    ret
+                    ret.to_monty() //COLT: This is horribly inefficient
                 }
 
                 #[inline]
@@ -1367,9 +1418,31 @@ macro_rules! fp31 {
                     #[test]
                     fn monty_inv_same_as_div(a in arb_fp(), b in arb_fp()) {
                         let div_result = a/b;
-                        let result = (a.to_monty() * b.inv().to_monty()).to_norm();
+                        let result = (a.to_monty() * b.to_monty().inv()).to_norm();
 
                         prop_assert_eq!(div_result, result)
+                    }
+
+                    #[test]
+                    fn monty_div_same_as_div(a in arb_fp(), b in arb_fp()) {
+                        let div_result = a/b;
+                        let monty_result = (a.to_monty()/b.to_monty()).to_norm();
+
+                        prop_assert_eq!(div_result, monty_result)
+                    }
+
+                    #[test]
+                    fn monty_zero_is_additive_ident(a in arb_fp(), b in arb_fp()) {
+                        let result = a.to_monty() + Monty::zero() + b.to_monty();
+
+                        prop_assert_eq!(result.to_norm(), a + b)
+                    }
+
+                                        #[test]
+                    fn monty_one_is_mul_ident(a in arb_fp(), b in arb_fp()) {
+                        let result = a.to_monty() * Monty::one() * b.to_monty();
+
+                        prop_assert_eq!(result.to_norm(), a * b)
                     }
                 }
             }

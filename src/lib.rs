@@ -104,6 +104,14 @@ impl From<[u8; 64]> for fp_256::Fp256 {
     }
 }
 
+impl From<[u8; 64]> for fp_256::Monty {
+    fn from(src: [u8; 64]) -> Self {
+        let mut limbs = [0u32; 18];
+        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs)).to_monty()
+    }
+}
+
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
         let mut limbs = [0u32; 32];
