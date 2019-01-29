@@ -461,6 +461,12 @@ macro_rules! fp31 {
                 }
             }
 
+            impl From<u64> for Monty {
+                fn from(src: u64) -> Self {
+                    $classname::from(src).to_monty()
+                }
+            }
+
             impl Mul<$classname> for Monty {
                 type Output = $classname;
 
