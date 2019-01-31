@@ -120,6 +120,14 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     }
 }
 
+impl From<[u8; 64]> for fp_480::Monty {
+    fn from(src: [u8; 64]) -> Self {
+        let mut limbs = [0u32; 32];
+        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
+        fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs)).to_monty()
+    }
+}
+
 pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
     let mut limbs = [0u32; 17];
     unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
