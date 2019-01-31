@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- [[#18](#18)] - Add From<[u8; 64]> to Fp480
+
 ## 0.5.1
 
 - [[#17](#17)] - Clippy cleanup
