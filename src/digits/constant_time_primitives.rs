@@ -51,6 +51,7 @@ pub trait ConstantSignedPrimitives {
     fn const_ge(self, y: Self) -> Self;
     fn const_lt(self, y: Self) -> Self;
     fn const_le(self, y: Self) -> Self;
+    fn const_abs(self) -> Self;
 }
 macro_rules! constant_unsigned { ($($T:ty),*) => { $(
 impl ConstantUnsignedPrimitives for $T {
@@ -69,7 +70,7 @@ impl ConstantUnsignedPrimitives for $T {
         let q = self ^ y;
         ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1)).not()
     }
-   #[inline]
+    #[inline]
     fn const_eq0(self) -> ConstantBool<Self> {
         let q = self as u64;
         let result = (!(q | q.wrapping_neg()) >> 63) as Self;
@@ -174,6 +175,13 @@ impl ConstantSignedPrimitives for i64 {
     fn const_le(self, y: Self) -> Self {
         ConstantSignedPrimitives::not(self.const_gt(y))
     }
+
+    #[inline]
+    fn const_abs(self) -> Self {
+        let is_neg = ConstantBool((self as u64) >> 63);
+        //Casts to u64 because that's what mux is expecting. This just chooses the negation if it was negative.
+        is_neg.mux((self as u64).wrapping_neg(), self as u64) as i64
+    }
 }
 
 pub trait ConstantUnsignedArray31 {
@@ -252,7 +260,7 @@ impl ConstantUnsignedArray31 for [u32; $N] {
         let mut res = 0i64;
         self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
             let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
-            res = res.abs().mux(res, limbcmp);
+            res = res.const_abs().mux(res, limbcmp);
         });
         match res {
             -1 => Some(Ordering::Less),
@@ -400,6 +408,24 @@ mod tests {
         assert_eq!(little.const_ge(big).0, 0u32);
         assert_eq!(little.const_ge(little).0, 1u32);
         assert_eq!(max.const_ge(max).0, 1u32);
+    }
+
+    #[test]
+    fn i64_const_abs() {
+        let negative: i64 = -100;
+        assert_eq!(negative.const_abs(), negative.abs());
+
+        let positive: i64 = 10000000;
+        assert_eq!(positive, positive.abs());
+
+        let zero: i64 = 0;
+        assert_eq!(zero.const_abs(), zero);
+
+        let one: i64 = 1;
+        assert_eq!(one.const_abs(), one);
+
+        let neg_one: i64 = -1;
+        assert_eq!(neg_one.const_abs(), 1);
     }
 
 }
