@@ -34,25 +34,12 @@ where
     fn const_ge(self, y: Self) -> ConstantBool<Self>;
     fn const_lt(self, y: Self) -> ConstantBool<Self>;
     fn const_le(self, y: Self) -> ConstantBool<Self>;
+    ///Removes the high bit if it's set, otherwise leaves number as is.
+    fn const_abs(self) -> Self;
     fn min(self, y: Self) -> Self;
     fn max(self, y: Self) -> Self;
 }
-pub trait ConstantSignedPrimitives {
-    fn not(self) -> Self;
-    fn mux(self, x: Self, y: Self) -> Self;
-    fn const_eq0(self) -> Self;
-    fn const_gt0(self) -> Self;
-    fn const_ge0(self) -> Self;
-    fn const_lt0(self) -> Self;
-    fn const_le0(self) -> Self;
-    fn const_eq(self, y: Self) -> Self;
-    fn const_neq(self, y: Self) -> Self;
-    fn const_gt(self, y: Self) -> Self;
-    fn const_ge(self, y: Self) -> Self;
-    fn const_lt(self, y: Self) -> Self;
-    fn const_le(self, y: Self) -> Self;
-    fn const_abs(self) -> Self;
-}
+
 macro_rules! constant_unsigned { ($($T:ty),*) => { $(
 impl ConstantUnsignedPrimitives for $T {
     const SIZE: u32 = (size_of::<$T>() * 8) as u32;
@@ -72,9 +59,8 @@ impl ConstantUnsignedPrimitives for $T {
     }
     #[inline]
     fn const_eq0(self) -> ConstantBool<Self> {
-        let q = self as u64;
-        let result = (!(q | q.wrapping_neg()) >> 63) as Self;
-        ConstantBool::is_zero(result)
+        let q = self;
+        ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1)).not()
     }
     #[inline]
     fn const_neq(self, y: Self) -> ConstantBool<Self> {
@@ -99,6 +85,11 @@ impl ConstantUnsignedPrimitives for $T {
         self.const_gt(y).not()
     }
     #[inline]
+    fn const_abs(self) -> Self{
+        let high_bit_is_set = ConstantBool(self >> (Self::SIZE - 1));
+        high_bit_is_set.mux(self.wrapping_neg(), self)
+    }
+    #[inline]
     fn min(self, y: Self) -> Self {
         self.const_gt(y).mux(y, self)
     }
@@ -109,80 +100,6 @@ impl ConstantUnsignedPrimitives for $T {
 }
 )+ }}
 constant_unsigned! { u64, u32 }
-impl ConstantSignedPrimitives for i64 {
-    #[inline]
-    fn not(self) -> Self {
-        self ^ 1
-    }
-    #[inline]
-    fn mux(self, x: Self, y: Self) -> Self {
-        y ^ (self.wrapping_neg() & (x ^ y))
-    }
-    #[inline]
-    fn const_eq0(self) -> Self {
-        let q = self as u64;
-        (!(q | q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_gt0(self) -> Self {
-        let q = self as u64;
-        ((!q & q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_ge0(self) -> Self {
-        let x = self as u64;
-        (!x >> 63) as i64
-    }
-    #[inline]
-    fn const_lt0(self) -> Self {
-        let x = self as u64;
-        (x >> 63) as i64
-    }
-    #[inline]
-    fn const_le0(self) -> Self {
-        /*
-         * ~-x has its high bit set if and only if -x is nonnegative (as
-         * a signed int), i.e. x is in the -(2^31-1) to 0 range. We must
-         * do an OR with x itself to account for x = -2^31.
-         */
-        let q = self as u64;
-        ((q | !q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_eq(self, y: Self) -> Self {
-        let q = self ^ y;
-        ConstantSignedPrimitives::not((q | q.wrapping_neg()) >> 63)
-    }
-    #[inline]
-    fn const_neq(self, y: Self) -> Self {
-        let q = self ^ y;
-        (q | q.wrapping_neg()) >> 63
-    }
-    #[inline]
-    fn const_gt(self, y: Self) -> Self {
-        let z = y.wrapping_sub(self);
-        (z ^ ((self ^ y) & (self ^ z))) >> 63
-    }
-    #[inline]
-    fn const_ge(self, y: Self) -> Self {
-        ConstantSignedPrimitives::not(y.const_gt(self))
-    }
-    #[inline]
-    fn const_lt(self, y: Self) -> Self {
-        y.const_gt(self)
-    }
-    #[inline]
-    fn const_le(self, y: Self) -> Self {
-        ConstantSignedPrimitives::not(self.const_gt(y))
-    }
-
-    #[inline]
-    fn const_abs(self) -> Self {
-        let is_neg = ConstantBool((self as u64) >> 63);
-        //Casts to u64 because that's what mux is expecting. This just chooses the negation if it was negative.
-        is_neg.mux((self as u64).wrapping_neg(), self as u64) as i64
-    }
-}
 
 pub trait ConstantUnsignedArray31 {
     fn const_not(self) -> Self;
@@ -257,12 +174,12 @@ impl ConstantUnsignedArray31 for [u32; $N] {
     }
 
     fn const_ordering(&self, y:&Self) -> Option<Ordering> {
-        let mut res = 0i64;
+        let mut res = 0u64;
         self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
-            let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
+            let limbcmp = (l.const_gt(*r).0 as u64) | ((r.const_gt(*l).0 as u64).wrapping_neg());
             res = res.const_abs().mux(res, limbcmp);
         });
-        match res {
+        match res as i64 {
             -1 => Some(Ordering::Less),
             0 => Some(Ordering::Equal),
             1 => Some(Ordering::Greater),
@@ -283,6 +200,8 @@ constant_unsigned_array31! { 9, 16 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
     #[test]
     fn const_not() {
         assert_eq!([0u32; 9].const_not(), [1u32; 9]);
@@ -411,21 +330,98 @@ mod tests {
     }
 
     #[test]
-    fn i64_const_abs() {
-        let negative: i64 = -100;
-        assert_eq!(negative.const_abs(), negative.abs());
+    fn const_ordering() {
+        let max = [0x7FFFFFFFu32; 9];
+        let big = [
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
+        ];
+        let little = [4u32; 9];
 
-        let positive: i64 = 10000000;
-        assert_eq!(positive, positive.abs());
+        assert_eq!(max.const_ordering(&big).unwrap(), Ordering::Greater);
+        assert_eq!(big.const_ordering(&max).unwrap(), Ordering::Less);
+        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
+        assert_eq!(little.const_ordering(&max).unwrap(), Ordering::Less);
+        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
+        assert_eq!(little.const_ordering(&big).unwrap(), Ordering::Less);
+        assert_eq!(little.const_ordering(&little).unwrap(), Ordering::Equal);
+        assert_eq!(max.const_ordering(&max).unwrap(), Ordering::Equal);
+    }
 
-        let zero: i64 = 0;
-        assert_eq!(zero.const_abs(), zero);
+    #[test]
+    fn u64_const_eq0() {
+        assert_eq!(std::u64::MAX.const_eq0().0, ConstantBool::new_false().0);
 
-        let one: i64 = 1;
-        assert_eq!(one.const_abs(), one);
+        let zero: u64 = 0;
+        assert_eq!(zero.const_eq0().0, ConstantBool::new_true().0);
 
-        let neg_one: i64 = -1;
-        assert_eq!(neg_one.const_abs(), 1);
+        let one: u64 = 1;
+        assert_eq!(one.const_eq0().0, ConstantBool::new_false().0);
+    }
+
+    proptest! {
+        #[test]
+        fn u64_const_eq(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_eq(b);
+            if a == b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_gt(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_gt(b);
+            if a > b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_gte(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_ge(b);
+            if a >= b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_lt(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_lt(b);
+            if a < b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_lte(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_le(b);
+            if a <= b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_abs(a in any::<i64>()) {
+            let result = (a as u64).const_abs();
+            prop_assert_eq!(a.abs() as u64, result);
+        }
     }
 
 }
