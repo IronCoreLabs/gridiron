@@ -615,7 +615,7 @@ macro_rules! fp31 {
                 /// options, which use barrett.
                 #[inline]
                 pub fn normalize_little_limbs(mut limbs: [u32; NUMLIMBS]) -> [u32; NUMLIMBS] {
-                    let needs_sub = limbs.const_gt(PRIME);
+                    let needs_sub = limbs.const_ge(PRIME);
                     $classname::sub_assign_limbs_if(&mut limbs, PRIME, needs_sub);
                     limbs
                 }
