@@ -421,7 +421,7 @@ macro_rules! fp31 {
                     }
 
                     // if dh≠0 or d≥m, set: d←d−m
-                    let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_gt(PRIME);
+                    let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_ge(PRIME);
                     $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
                     Monty { limbs: d }
                 }
