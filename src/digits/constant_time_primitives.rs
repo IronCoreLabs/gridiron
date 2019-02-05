@@ -37,20 +37,9 @@ where
     fn min(self, y: Self) -> Self;
     fn max(self, y: Self) -> Self;
 }
+///Constant signed primitives are only used for ordering so only the minimum required is currently in this trait.
 pub trait ConstantSignedPrimitives {
-    fn not(self) -> Self;
     fn mux(self, x: Self, y: Self) -> Self;
-    fn const_eq0(self) -> Self;
-    fn const_gt0(self) -> Self;
-    fn const_ge0(self) -> Self;
-    fn const_lt0(self) -> Self;
-    fn const_le0(self) -> Self;
-    fn const_eq(self, y: Self) -> Self;
-    fn const_neq(self, y: Self) -> Self;
-    fn const_gt(self, y: Self) -> Self;
-    fn const_ge(self, y: Self) -> Self;
-    fn const_lt(self, y: Self) -> Self;
-    fn const_le(self, y: Self) -> Self;
     fn const_abs(self) -> Self;
 }
 macro_rules! constant_unsigned { ($($T:ty),*) => { $(
@@ -72,7 +61,8 @@ impl ConstantUnsignedPrimitives for $T {
     }
     #[inline]
     fn const_eq0(self) -> ConstantBool<Self> {
-        self.const_eq(0)
+        let q = self;
+        ConstantBool((q | q.wrapping_neg()) >> (Self::SIZE - 1)).not()
     }
     #[inline]
     fn const_neq(self, y: Self) -> ConstantBool<Self> {
@@ -109,69 +99,8 @@ impl ConstantUnsignedPrimitives for $T {
 constant_unsigned! { u64, u32 }
 impl ConstantSignedPrimitives for i64 {
     #[inline]
-    fn not(self) -> Self {
-        self ^ 1
-    }
-    #[inline]
     fn mux(self, x: Self, y: Self) -> Self {
         y ^ (self.wrapping_neg() & (x ^ y))
-    }
-    #[inline]
-    fn const_eq0(self) -> Self {
-        let q = self as u64;
-        (!(q | q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_gt0(self) -> Self {
-        let q = self as u64;
-        ((!q & q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_ge0(self) -> Self {
-        let x = self as u64;
-        (!x >> 63) as i64
-    }
-    #[inline]
-    fn const_lt0(self) -> Self {
-        let x = self as u64;
-        (x >> 63) as i64
-    }
-    #[inline]
-    fn const_le0(self) -> Self {
-        /*
-         * ~-x has its high bit set if and only if -x is nonnegative (as
-         * a signed int), i.e. x is in the -(2^31-1) to 0 range. We must
-         * do an OR with x itself to account for x = -2^31.
-         */
-        let q = self as u64;
-        ((q | !q.wrapping_neg()) >> 63) as i64
-    }
-    #[inline]
-    fn const_eq(self, y: Self) -> Self {
-        let q = self ^ y;
-        ConstantSignedPrimitives::not((q | q.wrapping_neg()) >> 63)
-    }
-    #[inline]
-    fn const_neq(self, y: Self) -> Self {
-        let q = self ^ y;
-        (q | q.wrapping_neg()) >> 63
-    }
-    #[inline]
-    fn const_gt(self, y: Self) -> Self {
-        let z = y.wrapping_sub(self);
-        (z ^ ((self ^ y) & (self ^ z))) >> 63
-    }
-    #[inline]
-    fn const_ge(self, y: Self) -> Self {
-        ConstantSignedPrimitives::not(y.const_gt(self))
-    }
-    #[inline]
-    fn const_lt(self, y: Self) -> Self {
-        y.const_gt(self)
-    }
-    #[inline]
-    fn const_le(self, y: Self) -> Self {
-        ConstantSignedPrimitives::not(self.const_gt(y))
     }
 
     #[inline]
@@ -408,6 +337,34 @@ mod tests {
         assert_eq!(little.const_ge(big).0, 0u32);
         assert_eq!(little.const_ge(little).0, 1u32);
         assert_eq!(max.const_ge(max).0, 1u32);
+    }
+
+    #[test]
+    fn const_ordering() {
+        assert_eq!([1u32; 9].const_ge([1u32; 9]).0, 1u32);
+        // test little minus big
+        let max = [0x7FFFFFFFu32; 9];
+        let big = [
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFFu32,
+            0x7FFFFFFEu32, // max - 2^31
+            0x7FFFFFFFu32,
+        ];
+        let little = [4u32; 9];
+
+        assert_eq!(max.const_ordering(&big).unwrap(), Ordering::Greater);
+        assert_eq!(big.const_ordering(&max).unwrap(), Ordering::Less);
+        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
+        assert_eq!(little.const_ordering(&max).unwrap(), Ordering::Less);
+        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
+        assert_eq!(little.const_ordering(&big).unwrap(), Ordering::Less);
+        assert_eq!(little.const_ordering(&little).unwrap(), Ordering::Equal);
+        assert_eq!(max.const_ordering(&max).unwrap(), Ordering::Equal);
     }
 
     #[test]
