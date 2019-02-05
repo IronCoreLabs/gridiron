@@ -26,6 +26,8 @@ where
 {
     const SIZE: u32;
     fn not(self) -> Self;
+    ///This chooses the first value if self is 1, chooses the 2nd value if the value is 0.
+    ///This is only well defined for 0 or 1. If your value can be anything except those 2, do not use this.
     fn mux(self, x: Self, y: Self) -> Self;
     fn const_eq(self, y: Self) -> ConstantBool<Self>;
     fn const_eq0(self) -> ConstantBool<Self>;
@@ -102,7 +104,6 @@ impl ConstantUnsignedPrimitives for $T {
 constant_unsigned! { u64, u32 }
 
 pub trait ConstantUnsignedArray31 {
-    fn const_not(self) -> Self;
     fn const_eq(self, y: Self) -> ConstantBool<u32>;
     fn const_eq0(self) -> ConstantBool<u32>;
     fn const_neq0(self) -> ConstantBool<u32>;
@@ -117,11 +118,6 @@ pub trait ConstantUnsignedArray31 {
 macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
 /// Must have maximum of 31-bits used per limb
 impl ConstantUnsignedArray31 for [u32; $N] {
-    #[inline]
-    fn const_not(mut self) -> Self {
-        self.iter_mut().for_each(|l| *l ^= 1);
-        self
-    }
 
     #[inline]
     fn const_eq(self, y: Self) -> ConstantBool<u32> {
@@ -201,11 +197,6 @@ constant_unsigned_array31! { 9, 16 }
 mod tests {
     use super::*;
     use proptest::prelude::*;
-
-    #[test]
-    fn const_not() {
-        assert_eq!([0u32; 9].const_not(), [1u32; 9]);
-    }
 
     #[test]
     fn const_eq() {
