@@ -836,7 +836,7 @@ macro_rules! fp31 {
 
                 #[inline]
                 fn mul_31_lo(x: u32, y: u32) -> u32 {
-                    (x as u64 * y as u64) as u32 & 0x7FFFFFFFu32
+                    x.wrapping_mul(y) & 0x7FFFFFFFu32
                 }
 
                 #[inline]
