@@ -34,14 +34,12 @@ where
     fn const_ge(self, y: Self) -> ConstantBool<Self>;
     fn const_lt(self, y: Self) -> ConstantBool<Self>;
     fn const_le(self, y: Self) -> ConstantBool<Self>;
+    //Removes the high bit if it's set, otherwise leaves number as is.
+    fn const_abs(self) -> Self;
     fn min(self, y: Self) -> Self;
     fn max(self, y: Self) -> Self;
 }
-///Constant signed primitives are only used for ordering so only the minimum required is currently in this trait.
-pub trait ConstantSignedPrimitives {
-    fn mux(self, x: Self, y: Self) -> Self;
-    fn const_abs(self) -> Self;
-}
+
 macro_rules! constant_unsigned { ($($T:ty),*) => { $(
 impl ConstantUnsignedPrimitives for $T {
     const SIZE: u32 = (size_of::<$T>() * 8) as u32;
@@ -87,6 +85,11 @@ impl ConstantUnsignedPrimitives for $T {
         self.const_gt(y).not()
     }
     #[inline]
+    fn const_abs(self) -> Self{
+        let high_bit_is_set = ConstantBool(self >> (Self::SIZE - 1));
+        high_bit_is_set.mux(self.wrapping_neg(), self)
+    }
+    #[inline]
     fn min(self, y: Self) -> Self {
         self.const_gt(y).mux(y, self)
     }
@@ -97,19 +100,6 @@ impl ConstantUnsignedPrimitives for $T {
 }
 )+ }}
 constant_unsigned! { u64, u32 }
-impl ConstantSignedPrimitives for i64 {
-    #[inline]
-    fn mux(self, x: Self, y: Self) -> Self {
-        y ^ (self.wrapping_neg() & (x ^ y))
-    }
-
-    #[inline]
-    fn const_abs(self) -> Self {
-        let is_neg = ConstantBool((self as u64) >> 63);
-        //Casts to u64 because that's what mux is expecting. This just chooses the negation if it was negative.
-        is_neg.mux((self as u64).wrapping_neg(), self as u64) as i64
-    }
-}
 
 pub trait ConstantUnsignedArray31 {
     fn const_not(self) -> Self;
@@ -184,12 +174,12 @@ impl ConstantUnsignedArray31 for [u32; $N] {
     }
 
     fn const_ordering(&self, y:&Self) -> Option<Ordering> {
-        let mut res = 0i64;
+        let mut res = 0u64;
         self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
-            let limbcmp = (l.const_gt(*r).0 as i64) | -(r.const_gt(*l).0 as i64);
+            let limbcmp = (l.const_gt(*r).0 as u64) | ((r.const_gt(*l).0 as u64).wrapping_neg());
             res = res.const_abs().mux(res, limbcmp);
         });
-        match res {
+        match res as i64 {
             -1 => Some(Ordering::Less),
             0 => Some(Ordering::Equal),
             1 => Some(Ordering::Greater),
@@ -368,24 +358,6 @@ mod tests {
     }
 
     #[test]
-    fn i64_const_abs() {
-        let negative: i64 = -100;
-        assert_eq!(negative.const_abs(), negative.abs());
-
-        let positive: i64 = 10000000;
-        assert_eq!(positive, positive.abs());
-
-        let zero: i64 = 0;
-        assert_eq!(zero.const_abs(), zero);
-
-        let one: i64 = 1;
-        assert_eq!(one.const_abs(), one);
-
-        let neg_one: i64 = -1;
-        assert_eq!(neg_one.const_abs(), 1);
-    }
-
-    #[test]
     fn u64_const_eq0() {
         assert_eq!(std::u64::MAX.const_eq0().0, ConstantBool::new_false().0);
 
@@ -414,7 +386,7 @@ mod tests {
                 prop_assert_eq!(result.0, ConstantBool::new_true().0);
             } else{
                 prop_assert_eq!(result.0, ConstantBool::new_false().0);
-            }
+            }b
         }
 
         #[test]
@@ -445,6 +417,12 @@ mod tests {
             } else{
                 prop_assert_eq!(result.0, ConstantBool::new_false().0);
             }
+        }
+
+        #[test]
+        fn u64_const_abs(a in any::<i64>()) {
+            let result = (a as u64).const_abs();
+            prop_assert_eq!(a.abs() as u64, result); 
         }
     }
 
