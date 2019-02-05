@@ -276,7 +276,7 @@ macro_rules! fp31 {
                         t2 = t1 * t1;
                         t1 = t2;
                     }
-                    $classname { limbs: x.limbs }
+                    Monty{ limbs: x.limbs }.to_norm()
                 }
             }
 
@@ -1350,6 +1350,11 @@ macro_rules! fp31 {
                         prop_assert_eq!(a * a, a.pow(2));
                         prop_assert_eq!(a * a * a, a.pow(3));
                         prop_assert_eq!(a * a * a * a, a.pow(4));
+                    }
+
+                    #[test]
+                    fn pow_for_class_equals_pow_u32(a in arb_fp(), i in any::<u32>()){
+                        prop_assert_eq!(a.pow(i), a.pow($classname::from(i)));
                     }
 
                     #[test]
