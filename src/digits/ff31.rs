@@ -39,7 +39,7 @@ macro_rules! fp31 {
             pub const BITSPERBYTE: usize = 8;
             pub const PRIME: [u32; NUMLIMBS] = $prime;
             pub const PRIMEBITS: usize = $bits;
-            pub const PRIMEBYTES: usize = PRIMEBITS / BITSPERBYTE;
+            pub const PRIMEBYTES: usize = (PRIMEBITS + BITSPERBYTE - 1) / BITSPERBYTE;
             pub const NUMLIMBS: usize = $limbs;
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
             pub const BARRETTMU: [u32; NUMLIMBS + 1] = $barrettmu;
@@ -686,7 +686,7 @@ macro_rules! fp31 {
                 }
 
                 pub fn to_str_hex(&self) -> String {
-                    let mut ret = String::with_capacity((PRIMEBITS / BITSPERBYTE) * 2); // two chars for every byte
+                    let mut ret = String::with_capacity(PRIMEBYTES * 2); // two chars for every byte
                     self.to_bytes_array()
                         .iter()
                         .for_each(|byte| ret.push_str(&format!("{:02x}", byte)));
