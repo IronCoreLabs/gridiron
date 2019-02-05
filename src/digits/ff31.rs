@@ -587,14 +587,6 @@ macro_rules! fp31 {
             }
 
             impl $classname {
-                ///Square the value. Same as a value times itself, but slightly more performant.
-                #[inline]
-                pub fn square(&self) -> $classname {
-                    let doublesize = $classname::mul_limbs_classic(&self.limbs, &self.limbs);
-                    $classname {
-                        limbs: $classname::reduce_barrett(&doublesize),
-                    }
-                }
                 #[inline]
                 pub fn to_monty(self) -> Monty {
                     Monty { limbs: self.limbs }
@@ -691,28 +683,6 @@ macro_rules! fp31 {
                         .iter()
                         .for_each(|byte| ret.push_str(&format!("{:02x}", byte)));
                     ret
-                }
-
-                // From Handbook of Applied Crypto algo 14.12
-                #[inline]
-                fn mul_limbs_classic(
-                    a: &[u32; NUMLIMBS],
-                    b: &[u32; NUMLIMBS],
-                ) -> [u32; NUMDOUBLELIMBS] {
-                    let mut res = [0u32; NUMDOUBLELIMBS];
-                    for i in 0..NUMLIMBS {
-                        let mut c = 0u32;
-                        for j in 0..NUMLIMBS {
-                            // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = util::split_u64_to_31b(
-                                util::mul_add(a[j], b[i], res[i + j]) + c as u64,
-                            );
-                            res[i + j] = v;
-                            c = u;
-                        }
-                        res[i + NUMLIMBS] = c;
-                    }
-                    res
                 }
 
                 #[inline]
