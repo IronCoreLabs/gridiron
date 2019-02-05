@@ -72,9 +72,7 @@ impl ConstantUnsignedPrimitives for $T {
     }
     #[inline]
     fn const_eq0(self) -> ConstantBool<Self> {
-        let q = self as u64;
-        let result = (!(q | q.wrapping_neg()) >> 63) as Self;
-        ConstantBool::is_zero(result)
+        self.const_eq(0)
     }
     #[inline]
     fn const_neq(self, y: Self) -> ConstantBool<Self> {
@@ -283,6 +281,8 @@ constant_unsigned_array31! { 9, 16 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
     #[test]
     fn const_not() {
         assert_eq!([0u32; 9].const_not(), [1u32; 9]);
@@ -426,6 +426,69 @@ mod tests {
 
         let neg_one: i64 = -1;
         assert_eq!(neg_one.const_abs(), 1);
+    }
+
+    #[test]
+    fn u64_const_eq0() {
+        assert_eq!(std::u64::MAX.const_eq0().0, ConstantBool::new_false().0);
+
+        let zero: u64 = 0;
+        assert_eq!(zero.const_eq0().0, ConstantBool::new_true().0);
+
+        let one: u64 = 1;
+        assert_eq!(one.const_eq0().0, ConstantBool::new_false().0);
+    }
+
+    proptest! {
+        #[test]
+        fn u64_const_eq(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_eq(b);
+            if a == b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_gt(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_gt(b);
+            if a > b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_gte(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_ge(b);
+            if a >= b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_lt(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_lt(b);
+            if a < b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
+
+        #[test]
+        fn u64_const_lte(a in any::<u64>(), b in any::<u64>()) {
+            let result = a.const_le(b);
+            if a <= b{
+                prop_assert_eq!(result.0, ConstantBool::new_true().0);
+            } else{
+                prop_assert_eq!(result.0, ConstantBool::new_false().0);
+            }
+        }
     }
 
 }

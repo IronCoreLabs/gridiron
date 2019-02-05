@@ -1192,7 +1192,7 @@ macro_rules! fp31 {
                      */
                     r = (a[0] | b[0]) ^ 1;
                     u[0] |= v[0];
-                    for k in 0..NUMLIMBS {
+                    for k in 1..NUMLIMBS {
                         r |= a[k] | b[k];
                         u[k] |= v[k];
                     }
