@@ -86,9 +86,9 @@ macro_rules! fp31 {
             impl<'a> DoubleEndedIterator for FpBitIter<'a, $classname> {
                 #[inline]
                 fn next_back(&mut self) -> Option<ConstantBool<u32>> {
-                    self.endindex -= 1;
                     let limbs = unsafe { (*self.p).limbs };
-                    if self.index <= self.endindex {
+                    if self.endindex > 0 && self.index <= self.endindex - 1 {
+                        self.endindex -= 1;
                         Some($classname::test_bit(&limbs, self.endindex))
                     } else {
                         None
@@ -1199,6 +1199,15 @@ macro_rules! fp31 {
                     first.swap_if(&mut second, !ConstantBool::new_true());
                     assert_eq!(first, $classname::zero());
                     assert_eq!(second, $classname::one());
+                }
+
+
+                #[test]
+                fn double_end_iter_next_back_bounds() {
+                    let x = $classname::one();
+                    let mut x_iter = x.iter_bit();
+                    while let Some(_) = x_iter.next_back() {}; // iterate back through all bits
+                    assert_eq!(0, x_iter.endindex) // but don't fall off the end!
                 }
 
                 prop_compose! {
