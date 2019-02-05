@@ -276,7 +276,7 @@ macro_rules! fp31 {
                         t2 = t1 * t1;
                         t1 = t2;
                     }
-                    Monty{ limbs: x.limbs }.to_norm()
+                    Monty { limbs: x.limbs }.to_norm()
                 }
             }
 
