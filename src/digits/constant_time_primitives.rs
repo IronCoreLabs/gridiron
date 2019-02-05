@@ -34,7 +34,7 @@ where
     fn const_ge(self, y: Self) -> ConstantBool<Self>;
     fn const_lt(self, y: Self) -> ConstantBool<Self>;
     fn const_le(self, y: Self) -> ConstantBool<Self>;
-    //Removes the high bit if it's set, otherwise leaves number as is.
+    ///Removes the high bit if it's set, otherwise leaves number as is.
     fn const_abs(self) -> Self;
     fn min(self, y: Self) -> Self;
     fn max(self, y: Self) -> Self;
@@ -331,8 +331,6 @@ mod tests {
 
     #[test]
     fn const_ordering() {
-        assert_eq!([1u32; 9].const_ge([1u32; 9]).0, 1u32);
-        // test little minus big
         let max = [0x7FFFFFFFu32; 9];
         let big = [
             0x7FFFFFFFu32,
@@ -386,7 +384,7 @@ mod tests {
                 prop_assert_eq!(result.0, ConstantBool::new_true().0);
             } else{
                 prop_assert_eq!(result.0, ConstantBool::new_false().0);
-            }b
+            }
         }
 
         #[test]
