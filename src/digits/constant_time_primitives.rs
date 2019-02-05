@@ -422,7 +422,7 @@ mod tests {
         #[test]
         fn u64_const_abs(a in any::<i64>()) {
             let result = (a as u64).const_abs();
-            prop_assert_eq!(a.abs() as u64, result); 
+            prop_assert_eq!(a.abs() as u64, result);
         }
     }
 
