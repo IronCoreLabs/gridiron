@@ -5,12 +5,12 @@
 /// - limbs - Number of limbs (ceil(bits/31))
 /// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
 /// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(31*numlimbs*2)/prime)`.
-/// - montgomery_r_inv - R = 2^(W*N) where W = word size and N = limbs. Then calculate R^-1 mod p. See lib.rs for examples.
+/// - montgomery_one - Montgomery One is R mod p
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
 /// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
 #[macro_export]
 macro_rules! fp31 {
-    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_r_inv: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
+    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
         /**
          * Why 31 bit?
          *
@@ -43,7 +43,7 @@ macro_rules! fp31 {
             pub const NUMLIMBS: usize = $limbs;
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
             pub const BARRETTMU: [u32; NUMLIMBS + 1] = $barrettmu;
-            pub const MONTRINV: [u32; NUMLIMBS] = $montgomery_r_inv;
+            pub const MONTONE: [u32; NUMLIMBS] = $montgomery_one;
             pub const MONTRSQUARED: [u32; NUMLIMBS] = $montgomery_r_squared;
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
 
@@ -577,7 +577,7 @@ macro_rules! fp31 {
             impl One for Monty {
                 #[inline]
                 fn one() -> Self {
-                    $classname::one().to_monty() //this is horribly inefficient, but I don't know of a way to compute it without making the macro even uglier.
+                    Monty { limbs: MONTONE }
                 }
 
                 #[inline]
@@ -632,7 +632,7 @@ macro_rules! fp31 {
                     let mut current_output_index = len;
                     while len != 0 {
                         //If the NUMLIMBS is N where N = 1 mod 32 then k could read off the end of the array. We guard against that by giving 0.
-                        let current_limb = if k < NUMLIMBS { self.limbs[k] } else { 0 };                        
+                        let current_limb = if k < NUMLIMBS { self.limbs[k] } else { 0 };
                         k += 1;
                         if acc_len == 0 {
                             acc = current_limb;
@@ -1202,12 +1202,11 @@ macro_rules! fp31 {
                     assert_eq!(second, $classname::one());
                 }
 
-
                 #[test]
                 fn double_end_iter_next_back_bounds() {
                     let x = $classname::one();
                     let mut x_iter = x.iter_bit();
-                    while let Some(_) = x_iter.next_back() {}; // iterate back through all bits
+                    while let Some(_) = x_iter.next_back() {} // iterate back through all bits
                     assert_eq!(0, x_iter.endindex) // but don't fall off the end!
                 }
 
