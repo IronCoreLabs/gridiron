@@ -631,7 +631,8 @@ macro_rules! fp31 {
                     let mut output: [u8; PRIMEBYTES] = [0u8; PRIMEBYTES];
                     let mut current_output_index = len;
                     while len != 0 {
-                        let current_limb = self.limbs[k];
+                        //If the NUMLIMBS is N where N = 1 mod 32 then k could read off the end of the array. We guard against that by giving 0.
+                        let current_limb = if k < NUMLIMBS { self.limbs[k] } else { 0 };                        
                         k += 1;
                         if acc_len == 0 {
                             acc = current_limb;
