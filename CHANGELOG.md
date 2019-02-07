@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- [[#21](#21)] - Many fixes for edge cases, remove Barrett. Breaking changes on macro invocation.
+- [[#20](#20)] - Fix defect in const_eq0 and related div_mod issue.
+- [[#19](#19)] - Make abs constant time.
+
 ## 0.5.2
 
 - [[#18](#18)] - Add From<[u8; 64]> to Fp480
