@@ -6,7 +6,7 @@
 /// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
 /// - reduction_const - This is a constant which is used to do reduction of an arbitrary size value using Monty. This value is precomputed and is defined as:
 ///                     2 ^ (31 * (limbs - 1)) * R % prime. This reduces to 2^(31 *(2*limbs -1)) % prime).
-/// - montgomery_one - Montgomery One is R mod p
+/// - montgomery_one - Montgomery One is R mod p where R is 2^(31*limbs).
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
 /// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
 #[macro_export]
