@@ -13,6 +13,7 @@ keywords = ["finite", "field", "crypto", "math"]
 
 [dependencies]
 num-traits = "~0.2"
+arrayref = "0.3.5"
 
 [profile.test]
 opt-level = 2

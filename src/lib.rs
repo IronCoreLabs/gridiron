@@ -1,4 +1,5 @@
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
+extern crate arrayref;
 extern crate num_traits;
 #[cfg(test)]
 extern crate rand;
@@ -28,13 +29,11 @@ fp31!(
         1055483031, 1386897616, 898494285, 1391857335, 488544832, 1799384686, 193115992, 565079768,
         190358044, 1260077487, 1583277252, 222489098, 760385720, 330553579, 429458313, 32766
     ],
-    // barrett reduction for reducing values up to twice
-    // the number of prime bits (double limbs):
-    // floor(2^(31*numlimbs*2)/p).digits(2^31)
+    //2^(31*(2*16-1)) mod p
+    //1260953731944968926163185575789985373882767326957187433125548064552888900134320111509075687974556690810534580956522126321850117682987897396142693
     [
-        867470981, 808770461, 73326154, 873519719, 731426156, 154316581, 1066899290, 1406793571,
-        1662108208, 231227174, 1893732143, 1300610845, 325218135, 866248622, 1596183093,
-        1288991726, 65539
+        52699749, 1788553808, 415039679, 2144920511, 546601702, 1042558412, 1066366637, 1687141834,
+        285383806, 438033468, 619177062, 1199772911, 174285372, 1142848565, 1781567804, 13235
     ],
     // Montgomery One is R mod p
     // montgomery R = 2^(W*N) where W = word size and N = limbs
@@ -69,17 +68,16 @@ fp31!(
         1577621095, 817453272, 47634040, 1927038601, 407749150, 1308464908, 685899370, 1518399909,
         143
     ],
-    // barrett reduction for reducing values up to twice
-    // the number of prime bits (double limbs):
-    // floor(2^(31*numlimbs*2)/p)
+    //2^(31*(2*9-1)) mod p
+    //18720133062205198694473358766232514389181011437180088121195238904893577296491
     [
-        618474456, 1306750627, 1454330209, 2032300189, 1138536719, 1905629153, 1016481908,
-        1139000707, 1048853973, 14943480
+        395508331, 432982901, 1116925886, 2092368399, 1335764116, 408528395, 1940570321, 832316282,
+        41
     ],
     // Montgomery One is R mod p
     // montgomery R = 2^(W*N) where W = word size and N = limbs
     //            R = 2^(9*31) = 2^279
-    // one = 971334446112864535459730953411759453321203419526069760625906204869452142602604249088 % mod p
+    // one = 971334446112864535459730953411759453321203419526069760625906204869452142602604249088 mod p
     // 31746963425510762026994079049051407537151967559209631525703407745209596424248
     [
         1368961080, 1174866893, 1632604085, 2004383869, 1511972380, 1964912876, 1176826515,
@@ -99,33 +97,54 @@ fp31!(
 
 impl From<[u8; 64]> for fp_256::Fp256 {
     fn from(src: [u8; 64]) -> Self {
-        let mut limbs = [0u32; 18];
-        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
-        fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs))
+        //In order to reduce a arbitrary integer we can break it up into pieces which are at most NUMLIMBS - 1 long and multiply it by REDUCTION_CONST using the following
+        // formula. x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2). In order to do this using only the one precomputed REDUCTION_CONST we can use Horner's method to evaluate
+        // the polynomial to make it (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0. Note that this implementation is specific for 64 bytes, but the idea has no limit on the length
+        // of the incoming number.
+        let limbs = from_sixty_four_bytes(src);
+        //Create fixed size views which are at most NUMLIMBS -1 in length.
+        let (x0_view, x1_view, x2_view) =
+            arrayref::array_refs![&limbs, fp_256::NUMLIMBS - 1, fp_256::NUMLIMBS - 1, 1];
+        //Create 0 padded values that match the above views.
+        let (mut x0, mut x1, mut x2) = (
+            [0u32; fp_256::NUMLIMBS],
+            [0u32; fp_256::NUMLIMBS],
+            [0u32; fp_256::NUMLIMBS],
+        );
+        //This stinks, but I can't find a better way. We copy the views into the front of each of the limbs, leaving them padded to the right with 0s.
+        x0[..fp_256::NUMLIMBS - 1].copy_from_slice(&x0_view[..]);
+        x1[..fp_256::NUMLIMBS - 1].copy_from_slice(&x1_view[..]);
+        x2[..1].copy_from_slice(&x2_view[..]);
+
+        //We take x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2) and use horner's method to reduce it to (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0
+        (fp_256::Fp256::new(x2) * fp_256::REDUCTION_CONST + fp_256::Fp256::new(x1))
+            * fp_256::REDUCTION_CONST
+            + fp_256::Fp256::new(x0)
     }
 }
 
 impl From<[u8; 64]> for fp_256::Monty {
     fn from(src: [u8; 64]) -> Self {
-        let mut limbs = [0u32; 18];
-        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
-        fp_256::Fp256::new(fp_256::Fp256::reduce_barrett(&limbs)).to_monty()
+        fp_256::Fp256::from(src).to_monty()
     }
 }
 
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
-        let mut limbs = [0u32; 32];
-        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
-        fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs))
+        //See the 256 version for a play by play of this function.
+        let limbs = from_sixty_four_bytes(src);
+        let (x0_view, x1_view) = arrayref::array_refs![&limbs, fp_480::NUMLIMBS - 1, 2];
+        let (mut x0, mut x1) = ([0u32; 16], [0u32; 16]);
+        x0[..fp_480::NUMLIMBS - 1].copy_from_slice(&x0_view[..]);
+        x1[..2].copy_from_slice(&x1_view[..]);
+
+        fp_480::Fp480::new(x1) * fp_480::REDUCTION_CONST + fp_480::Fp480::new(x0)
     }
 }
 
 impl From<[u8; 64]> for fp_480::Monty {
     fn from(src: [u8; 64]) -> Self {
-        let mut limbs = [0u32; 32];
-        unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
-        fp_480::Fp480::new(fp_480::Fp480::reduce_barrett(&limbs)).to_monty()
+        fp_480::Fp480::from(src).to_monty()
     }
 }
 
@@ -281,57 +300,6 @@ mod lib {
     }
 
     #[test]
-    fn barrett_reduction() {
-        // max
-        let yuuuuge = [
-            1717850385, 975992930, 1085120981, 290253968, 541414174, 1010009590, 992858995,
-            1544978906, 479141764, 595912303, 1182831228, 1732726309, 208474352, 431120126,
-            1041596558, 2047733944, 736903860, 964324177, 245966458, 1453527551, 1075327941,
-            2050995692, 1443163149, 1018800365, 275337413, 1465124270, 409168091, 1829798574,
-            231461389, 574854543, 1073623861, 0,
-        ]; // p^2 in 31 bit limbs
-        assert_eq!(fp_480::Fp480::reduce_barrett(&yuuuuge), [0u32; 16]);
-
-        let max = [
-            1657593201, 1540832074, 1649487609, 580760650, 1029551730, 2022468362, 1718453138,
-            429469137, 2035023273, 199629839, 1710284256, 907874956, 1233314842, 1123865686,
-            1935834002, 1544277094, 20651, 0,
-        ]; // p^2
-        assert_eq!(fp_256::Fp256::reduce_barrett(&max), [0u32; 9]);
-
-        // 2*p = 0
-        let twop = [
-            2110966062, 626311584, 1796988571, 636231022, 977089665, 1451285724, 386231985,
-            1130159536, 380716088, 372671326, 1019070857, 444978197, 1520771440, 661107158,
-            858916626, 65532, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]; // padded to be DOUBLENUMLIMBS long
-        assert_eq!(fp_480::Fp480::reduce_barrett(&twop), [0u32; 16]);
-
-        // p * p = 0
-        // (p-5)*(p-4) = p^2 - 4p - 5p + 20 -- any multiple of p is zero, so = 20
-
-        // Arbitrary big number x < p:
-        // 1207811257040831621391376042066624303968527700717084310097981686745089556997378024160906781595716428319582984800146428900609196302855174292951579
-        // x * x =
-        // 1458808032634553832917799193961797434235419188246642318697058264038385049089265036191575901553853582615536794361502971074563184673635362176350783892004837696732862760694621978178376129161721367027911973240921051380566691956112820757574780900407857583461168170860656255046949060119638593241
-        // x * x mod p =
-        // 1809287164707112312378003899038518547656481275056607132587933524119638354881446495182091979711134781179141557515395208880017070421464511373264455
-        let xsquared = [
-            1256476377, 2102446331, 1632594058, 1382086562, 1977188283, 1189833019, 98505500,
-            386297644, 482637868, 751487015, 968545410, 1465590326, 1636829572, 1068997602,
-            2112274040, 675780054, 69810239, 774249708, 1799903083, 2117638065, 492942939,
-            1246496911, 1605644669, 704647290, 1852334453, 1325788175, 178848546, 1997374434,
-            1793336617, 22325931, 160731937, 0,
-        ];
-        let expected = [
-            869156423, 665057899, 1391192655, 894967811, 1796343620, 436717649, 1265537281,
-            727485642, 573430722, 980187994, 1374252810, 1447922940, 438926278, 1658380520,
-            1097281981, 18991,
-        ];
-        assert_eq!(fp_480::Fp480::reduce_barrett(&xsquared), expected);
-    }
-
-    #[test]
     fn debug_hex_output_test256() {
         // 0x00000000000000000000000000000000000000003fffffffc000000000000000
         let other = fp_256::Fp256::new([0, 0, 0x00FFFFFFFFu32, 0, 0, 0, 0, 0, 0]);
@@ -378,6 +346,16 @@ mod lib {
             1191577462, 120,
         ]);
         assert_eq!(fp_256::Fp256::from(x), expected);
+    }
+
+    #[test]
+    fn test_from_sha_static_480() {
+        let x = [1u8; 64];
+        let expected = fp_480::Fp480::new([
+            197889999, 570994369, 28975468, 902663725, 1105020808, 268027837, 176577716, 908958290,
+            1600447047, 1231221665, 545584028, 1481371629, 67452331, 1668714925, 51469794, 9111,
+        ]);
+        assert_eq!(fp_480::Fp480::from(x), expected);
     }
 
     #[test]

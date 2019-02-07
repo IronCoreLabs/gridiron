@@ -4,13 +4,14 @@
 /// - bits - How many bits the prime is.
 /// - limbs - Number of limbs (ceil(bits/31))
 /// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
-/// - barrett - barrett reduction for reducing values up to twice the number of prime bits (double limbs). This is `floor(2^(31*numlimbs*2)/prime)`.
+/// - reduction_const - This is a constant which is used to do reduction of an arbitrary size value using Monty. This value is precomputed and is defined as:
+///                     2 ^ (31 * (limbs - 1)) * R % prime. This reduces to 2^(31 *(2*limbs -1)) % prime).
 /// - montgomery_one - Montgomery One is R mod p
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
 /// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
 #[macro_export]
 macro_rules! fp31 {
-    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $barrettmu: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
+    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $reduction_const: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
         /**
          * Why 31 bit?
          *
@@ -42,10 +43,10 @@ macro_rules! fp31 {
             pub const PRIMEBYTES: usize = (PRIMEBITS + BITSPERBYTE - 1) / BITSPERBYTE;
             pub const NUMLIMBS: usize = $limbs;
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
-            pub const BARRETTMU: [u32; NUMLIMBS + 1] = $barrettmu;
             pub const MONTONE: [u32; NUMLIMBS] = $montgomery_one;
             pub const MONTRSQUARED: [u32; NUMLIMBS] = $montgomery_r_squared;
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
+            pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
             #[derive(PartialEq, Eq, Ord, Clone, Copy)]
             pub struct $classname {
@@ -369,7 +370,7 @@ macro_rules! fp31 {
 
                 ///Constructor. Note that this is unsafe if the limbs happen to be greater than your PRIME.
                 ///In that case you should use conversion to byte arrays or manually do the math on the limbs yourself.
-                pub fn new(limbs: [u32; NUMLIMBS]) -> Monty {
+                pub const fn new(limbs: [u32; NUMLIMBS]) -> Monty {
                     Monty { limbs }
                 }
             }
@@ -603,8 +604,7 @@ macro_rules! fp31 {
                 }
 
                 /// This normalize should only be used when the input is at most
-                /// 2*p-1. Anything that might be bigger should use the normalize_big
-                /// options, which use barrett.
+                /// 2*p-1.
                 #[inline]
                 pub fn normalize_little_limbs(mut limbs: [u32; NUMLIMBS]) -> [u32; NUMLIMBS] {
                     let needs_sub = limbs.const_ge(PRIME);
@@ -707,75 +707,6 @@ macro_rules! fp31 {
                     }
                 }
 
-                // From Handbook of Applied Cryptography 14.42
-                // INPUT: positive integers x = (x2k−1 · · · x1x0)b, m = (mk−1 · · · m1m0)b (with mk−1 ̸= 0), and μ = ⌊b2k/m⌋.
-                // OUTPUT: r = x mod m.
-                // 1. q1←⌊x/bk−1⌋, q2←q1 · μ, q3←⌊q2/bk+1⌋.
-                // 2. r1←x mod bk+1, r2←q3 · m mod bk+1, r←r1 − r2. 3. Ifr<0thenr←r+bk+1.
-                // 4. While r≥m do:r←r−m.
-                // 5. Return(r).
-                // Also helpful: https://www.everything2.com/title/Barrett+Reduction
-                #[inline]
-                pub fn reduce_barrett(a: &[u32; NUMDOUBLELIMBS]) -> [u32; NUMLIMBS] {
-                    // q1←⌊x/bk−1⌋
-                    let mut q1 = [0u32; NUMLIMBS + 1];
-                    q1.copy_from_slice(&a[NUMLIMBS - 1..]);
-
-                    // q2←q1 · μ
-                    // q1 * BARRETTMU
-                    // BARRETTMU is NUMLIMBS + 1
-                    let mut q2 = [0u32; 2 * NUMLIMBS + 2];
-                    for i in 0..=NUMLIMBS {
-                        let mut c = 0u32;
-                        for j in 0..=NUMLIMBS {
-                            // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = util::split_u64_to_31b(
-                                util::mul_add(q1[j], BARRETTMU[i], q2[i + j]) + c as u64,
-                            );
-                            q2[i + j] = v;
-                            c = u;
-                        }
-                        q2[i + NUMLIMBS + 1] = c;
-                    }
-
-                    // q3←⌊q2/bk+1⌋
-                    let mut q3 = [0u32; NUMLIMBS];
-                    q3.copy_from_slice(&q2[NUMLIMBS + 1..=NUMDOUBLELIMBS]);
-
-                    // r1←x mod bk+1
-                    let mut r1 = [0u32; NUMLIMBS + 2];
-                    r1.copy_from_slice(&a[..NUMLIMBS + 2]);
-
-                    // r2←q3 · m mod bk+1
-                    // let r2 = &q3.mul_classic(&PRIME)[..NUMLIMBS + 1];
-                    let mut r2 = [0u32; NUMLIMBS * 2];
-                    for i in 0..NUMLIMBS {
-                        let mut c = 0u32;
-                        for j in 0..NUMLIMBS {
-                            // Compute (uv)b = wi+j + xj · yi + c, and set wi+j ←v, c←u
-                            let (u, v) = util::split_u64_to_31b(
-                                util::mul_add(q3[j], PRIME[i], r2[i + j]) + c as u64,
-                            );
-                            r2[i + j] = v;
-                            c = u;
-                        }
-                        r2[i + NUMLIMBS] = c;
-                    }
-
-                    // r←r1 − r2
-                    // r1 = r1 - r2
-                    let mut r = [0u32; NUMLIMBS];
-                    Self::sub_assign_limbs_slice(&mut r1[..NUMLIMBS], &r2[..NUMLIMBS]);
-                    r.copy_from_slice(&r1[..NUMLIMBS]);
-
-                    // If r<0 then r←r+bk+1
-                    // at most two subtractions with p
-                    let dosub = r.const_ge(PRIME);
-                    Self::sub_assign_limbs_if(&mut r, PRIME, dosub);
-
-                    r
-                }
-
                 ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
                 ///len bytes and split them into 31 bit limbs.
                 #[inline]
@@ -822,20 +753,6 @@ macro_rules! fp31 {
                 }
 
                 #[inline]
-                fn sub_assign_limbs_slice(a: &mut [u32], b: &[u32]) -> ConstantBool<u32> {
-                    debug_assert!(a.len() == b.len());
-                    let mut cc = 0u32;
-                    for (aa, bb) in a.iter_mut().zip(b.iter()) {
-                        let aw = *aa;
-                        let bw = *bb;
-                        let naw = aw.wrapping_sub(bw).wrapping_sub(cc);
-                        cc = naw >> 31;
-                        *aa = naw & 0x7FFFFFFF;
-                    }
-                    ConstantBool(cc)
-                }
-
-                #[inline]
                 fn mul_31_lo(x: u32, y: u32) -> u32 {
                     x.wrapping_mul(y) & 0x7FFFFFFFu32
                 }
@@ -847,7 +764,7 @@ macro_rules! fp31 {
                     *a = $classname::normalize_little_limbs(p);
                 }
 
-                ///Negation (not mod prime) for a. Will only actulaly be performed if the ctl is true. Otherwise
+                ///Negation (not mod prime) for a. Will only actually be performed if the ctl is true. Otherwise
                 ///perform the same bit access pattern, but don't negate.
                 #[inline]
                 fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
