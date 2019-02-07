@@ -85,6 +85,7 @@ where
         + Zero
         + PartialEq,
 {
+    ///This chooses the first value if self is 1 (true), chooses the 2nd value if the value is 0 (false).
     #[inline]
     pub fn mux(self, x: T, y: T) -> T {
         y ^ (Wrapping(self.0).neg().0 & (x ^ y))

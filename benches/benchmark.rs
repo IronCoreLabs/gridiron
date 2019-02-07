@@ -17,14 +17,13 @@ fn criterion_benchmark(c: &mut Criterion) {
         for limb in limbs.iter_mut() {
             *limb = rng.next_u32();
         }
+        limbs[fp_256::NUMLIMBS - 1] &= 0xFF; //Ensure the last limb isn't too big
         limbs
     }
 
-    fn gen_rand_double_limbs(rng: &mut ThreadRng) -> [u32; 2 * fp_256::NUMLIMBS] {
-        let mut limbs = [0u32; 2 * fp_256::NUMLIMBS];
-        for limb in limbs.iter_mut() {
-            *limb = rng.next_u32();
-        }
+    fn gen_rand_sixty_four_bytes(rng: &mut ThreadRng) -> [u8; 64] {
+        let mut limbs = [0u8; 64];
+        rng.fill_bytes(&mut limbs[..]);
         limbs
     }
 
@@ -33,7 +32,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
 
     fn gen_rand_fp256(rng: &mut ThreadRng) -> fp_256::Fp256 {
-        (gen_rand_fp256_raw(rng)).normalize_big(0)
+        gen_rand_fp256_raw(rng).normalize_little()
     }
 
     fn gen_rand_480_limbs(rng: &mut ThreadRng) -> [u32; fp_480::NUMLIMBS] {
@@ -41,7 +40,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         for limb in limbs.iter_mut() {
             *limb = rng.next_u32();
         }
-        limbs[fp_480::NUMLIMBS - 1] &= 0xFFFF;
+        limbs[fp_480::NUMLIMBS - 1] &= 0xFEFF;
         limbs
     }
 
@@ -50,30 +49,18 @@ fn criterion_benchmark(c: &mut Criterion) {
     }
 
     fn gen_rand_fp480(rng: &mut ThreadRng) -> fp_480::Fp480 {
-        (gen_rand_fp480_raw(rng)).normalize_big(0)
+        (gen_rand_fp480_raw(rng)).normalize_little()
     }
 
-    c.bench_function("Fp256 - normalize (256 bits to Fp256 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp256_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_big(0));
-                }
-            },
-        );
-    });
-
     c.bench_function(
-        "Fp256 - reduce_barrett (normalize 512 bits to Fp256 100 times)",
+        "Fp256 - normalize_little (256 bits to Fp256 100 times)",
         |bench| {
             let mut rng = rand::thread_rng();
             bench.iter_with_setup(
-                || gen_rand_double_limbs(&mut rng),
+                || gen_rand_fp256_raw(&mut rng),
                 |val_to_norm| {
                     for _ in 0..100 {
-                        black_box(fp_256::Fp256::reduce_barrett(&val_to_norm));
+                        black_box(val_to_norm.normalize_little());
                     }
                 },
             );
@@ -188,11 +175,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.inv());
     });
 
-    c.bench_function("Fp256 - square (square an Fp256)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(|| gen_rand_fp256(&mut rng), |a| a.square());
-    });
-
     c.bench_function("Fp256 - pow (exponentiate an Fp256 by an Fp256)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
@@ -201,10 +183,10 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("Fp256 - pow (exponentiate an Fp256 by a u64)", |bench| {
+    c.bench_function("Fp256 - pow (exponentiate an Fp256 by a u32)", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
-            || (gen_rand_fp256(&mut rng), rng.next_u64()),
+            || (gen_rand_fp256(&mut rng), rng.next_u32()),
             |(a, exp)| a.pow(exp),
         );
     });
@@ -225,6 +207,14 @@ fn criterion_benchmark(c: &mut Criterion) {
         },
     );
 
+    c.bench_function("Fp256 - from 64 bytes", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || gen_rand_sixty_four_bytes(&mut rng),
+            |bytes| fp_256::Fp256::from(bytes),
+        );
+    });
+
     c.bench_function("Fp256 - Monty - Mul 100 times", |bench| {
         let mut rng = rand::thread_rng();
         bench.iter_with_setup(
@@ -237,17 +227,6 @@ fn criterion_benchmark(c: &mut Criterion) {
             |(mut a, b)| {
                 for _ in 0..100 {
                     a = black_box(a * b);
-                }
-            },
-        );
-    });
-    c.bench_function("Fp480 - normalize (480 bits to Fp480 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp480_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_big(0));
                 }
             },
         );
@@ -276,6 +255,21 @@ fn criterion_benchmark(c: &mut Criterion) {
             },
         );
     });
+
+    c.bench_function(
+        "Fp480 - normalize_little (480 bits to Fp480 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp480_raw(&mut rng),
+                |val_to_norm| {
+                    for _ in 0..100 {
+                        black_box(val_to_norm.normalize_little());
+                    }
+                },
+            );
+        },
+    );
 
     c.bench_function(
         "Fp480 - add_assign (add an Fp480 into another Fp480 100 times)",
@@ -342,6 +336,14 @@ fn criterion_benchmark(c: &mut Criterion) {
             );
         },
     );
+
+    c.bench_function("Fp480 - from 64 bytes", |bench| {
+        let mut rng = rand::thread_rng();
+        bench.iter_with_setup(
+            || gen_rand_sixty_four_bytes(&mut rng),
+            |bytes| fp_480::Fp480::from(bytes),
+        );
+    });
 }
 
 criterion_group! {
