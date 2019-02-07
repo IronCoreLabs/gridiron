@@ -17,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         for limb in limbs.iter_mut() {
             *limb = rng.next_u32();
         }
-        limbs[fp_256::NUMLIMBS -1] &= 0xFF; //Ensure the last limb isn't too big
+        limbs[fp_256::NUMLIMBS - 1] &= 0xFF; //Ensure the last limb isn't too big
         limbs
     }
 
@@ -52,17 +52,20 @@ fn criterion_benchmark(c: &mut Criterion) {
         (gen_rand_fp480_raw(rng)).normalize_little()
     }
 
-    c.bench_function("Fp256 - normalize_little (256 bits to Fp256 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp256_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_little());
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp256 - normalize_little (256 bits to Fp256 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp256_raw(&mut rng),
+                |val_to_norm| {
+                    for _ in 0..100 {
+                        black_box(val_to_norm.normalize_little());
+                    }
+                },
+            );
+        },
+    );
 
     c.bench_function("Fp256 - add (add two Fp256s 100 times)", |bench| {
         let mut rng = rand::thread_rng();
@@ -206,7 +209,10 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("Fp256 - from 64 bytes", |bench| {
         let mut rng = rand::thread_rng();
-        bench.iter_with_setup(|| gen_rand_sixty_four_bytes(&mut rng), |bytes| fp_256::Fp256::from(bytes));
+        bench.iter_with_setup(
+            || gen_rand_sixty_four_bytes(&mut rng),
+            |bytes| fp_256::Fp256::from(bytes),
+        );
     });
 
     c.bench_function("Fp256 - Monty - Mul 100 times", |bench| {
@@ -250,17 +256,20 @@ fn criterion_benchmark(c: &mut Criterion) {
         );
     });
 
-    c.bench_function("Fp480 - normalize_little (480 bits to Fp480 100 times)", |bench| {
-        let mut rng = rand::thread_rng();
-        bench.iter_with_setup(
-            || gen_rand_fp480_raw(&mut rng),
-            |val_to_norm| {
-                for _ in 0..100 {
-                    black_box(val_to_norm.normalize_little());
-                }
-            },
-        );
-    });
+    c.bench_function(
+        "Fp480 - normalize_little (480 bits to Fp480 100 times)",
+        |bench| {
+            let mut rng = rand::thread_rng();
+            bench.iter_with_setup(
+                || gen_rand_fp480_raw(&mut rng),
+                |val_to_norm| {
+                    for _ in 0..100 {
+                        black_box(val_to_norm.normalize_little());
+                    }
+                },
+            );
+        },
+    );
 
     c.bench_function(
         "Fp480 - add_assign (add an Fp480 into another Fp480 100 times)",
@@ -330,7 +339,10 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("Fp480 - from 64 bytes", |bench| {
         let mut rng = rand::thread_rng();
-        bench.iter_with_setup(|| gen_rand_sixty_four_bytes(&mut rng), |bytes| fp_480::Fp480::from(bytes));
+        bench.iter_with_setup(
+            || gen_rand_sixty_four_bytes(&mut rng),
+            |bytes| fp_480::Fp480::from(bytes),
+        );
     });
 }
 

@@ -43,8 +43,8 @@ macro_rules! fp31 {
             pub const PRIMEBYTES: usize = (PRIMEBITS + BITSPERBYTE - 1) / BITSPERBYTE;
             pub const NUMLIMBS: usize = $limbs;
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
-            pub const MONTONE: [u32; NUMLIMBS] = $montgomery_one;
-            pub const MONTRSQUARED: [u32; NUMLIMBS] = $montgomery_r_squared;
+            pub const MONTONE: Monty = Monty::new($montgomery_one);
+            pub const MONTRSQUARED: Monty = Monty::new($montgomery_r_squared);
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
             pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
@@ -578,7 +578,7 @@ macro_rules! fp31 {
             impl One for Monty {
                 #[inline]
                 fn one() -> Self {
-                    Monty { limbs: MONTONE }
+                    MONTONE
                 }
 
                 #[inline]
@@ -590,10 +590,7 @@ macro_rules! fp31 {
             impl $classname {
                 #[inline]
                 pub fn to_monty(self) -> Monty {
-                    Monty { limbs: self.limbs }
-                        * Monty {
-                            limbs: MONTRSQUARED,
-                        }
+                    Monty { limbs: self.limbs } * MONTRSQUARED
                 }
 
                 ///See normalize_little_limbs.
