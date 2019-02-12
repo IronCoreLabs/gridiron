@@ -8,12 +8,22 @@ branches:
   only:
     - master
     - cross-compile
+
+
 before_script:
   - rustup component add rustfmt-preview
   - cargo install cross
 script:
 #  - cargo build --verbose
   - cross build --target aarch64-linux-android
+  - cross build --target x86_64-unknown-linux-musl
+  - cross build --target i586-unknown-linux-gnu
+  - cross build --target armv7-unknown-linux-gnueabihf
 #  - cargo test --verbose
   - cross test --target aarch64-linux-android
+  - cross test --target x86_64-unknown-linux-musl
+  - cross test --target i586-unknown-linux-gnu
+  - cross test --target armv7-unknown-linux-gnueabihf
   - cargo fmt -- --check
+
+
