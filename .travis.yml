@@ -1,3 +1,5 @@
+services:
+  - docker
 language: rust
 cache: cargo
 rust:
@@ -7,7 +9,10 @@ branches:
     - master
 before_script:
   - rustup component add rustfmt-preview
+  - cargo install cross
 script:
-  - cargo build --verbose
-  - cargo test --verbose
+#  - cargo build --verbose
+  - cross build --target aarch64-linux-android
+#  - cargo test --verbose
+  - cross test --target aarch64-linux-android
   - cargo fmt -- --check
