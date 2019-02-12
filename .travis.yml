@@ -7,6 +7,7 @@ rust:
 branches:
   only:
     - master
+    - cross-compile
 before_script:
   - rustup component add rustfmt-preview
   - cargo install cross
