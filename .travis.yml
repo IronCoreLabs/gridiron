@@ -11,7 +11,7 @@ branches:
 
 before_script:
   - rustup component add rustfmt-preview
-  - cargo install cross
+  - cross --version || cargo install cross
 matrix:
   include:
     - name: "Linux x86_64"
@@ -31,7 +31,7 @@ matrix:
         - TEST=1
 
 install:
-  - rustup target add $TARGET || true
+  - rustup target add $TARGET
 
 script:
   - cross build --target $TARGET
