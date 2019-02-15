@@ -41,11 +41,11 @@ matrix:
       env:
         - TARGET=x86_64-apple-darwin
         - TEST=1
-    - name: "iOS x86_64"
-      os: osx
-      env:
-        - TARGET=aarch64-apple-ios
-        - TEST=1
+    #- name: "iOS x86_64"
+    #  os: osx
+    #  env:
+    #    - TARGET=aarch64-apple-ios
+    #    - TEST=1
     # ARM
     - name: "32bit ARM"
       os: linux
@@ -62,17 +62,3 @@ script:
     if [ $TEST = 1 ]; then
       cross test --target $TARGET
     fi
-    
-#  - cargo build --verbose
-#  - cross build --target aarch64-linux-android
-#  - cross build --target x86_64-unknown-linux-musl
-#  - cross build --target i586-unknown-linux-gnu
-#  - cross build --target armv7-unknown-linux-gnueabihf
-#  - cargo test --verbose
-#  - cross test --target aarch64-linux-android
-#  - cross test --target x86_64-unknown-linux-musl
-#  - cross test --target i586-unknown-linux-gnu
-#  - cross test --target armv7-unknown-linux-gnueabihf
-#  - cargo fmt -- --check
-
-
