@@ -1,11 +1,4 @@
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
-extern crate arrayref;
-extern crate num_traits;
-#[cfg(test)]
-extern crate rand;
-#[cfg(test)]
-#[macro_use]
-extern crate proptest;
 
 #[macro_use]
 pub mod digits {
