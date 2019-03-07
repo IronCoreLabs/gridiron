@@ -1,7 +1,7 @@
 Gridiron [![](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) [![](https://travis-ci.com/IronCoreLabs/gridiron.svg?branch=master)](https://travis-ci.com/IronCoreLabs/gridiron?branch=master)
 ====================
 
-This library is a work in progress. To use it, you can either use one of the provided finite fields, or you can call the macro to create your own. The two that are included are:
+To use this library, you can either use one of the provided finite fields, or you can call the macro to create your own. The two that are included are:
 
 * `fp_480::Fp480`
 * `fp_256::Fp256`
@@ -54,7 +54,11 @@ To use it, you'll need to import headers for the math operations you want. So, f
     let one = fp_256::Fp256::one();
     let two = one + one;
 
-This is a work in progress and we hope to make it more performant. All operations are constant time except:
+All operations provided by the library are constant time (meaning that they are implemented to prevent a timing or memory access pattern side-channel attack from extracting a value that should be kept secret, such as a private key) except:
 
 `Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`. 
 The will be much slower and typically the u64s are not secret values so it's ok for them to be non constant time.
+
+# Code Audit
+
+NCC Group has conducted an audit of this library - release [0.6.0](https://github.com/IronCoreLabs/gridiron/releases/tag/0.6.0) contains all of the audited code, including updates that were created to resolve issues that were discovered during the audit. The NCC Group audit found that the chosen pairing and elliptic curve are cryptographically sound, and that the Rust implementation is a faithful and correct embodiment of the target protocol. In addition, the audit specifically looked for but did not find any leak of secret information via timing or memory access pattern side-channel attacks.
