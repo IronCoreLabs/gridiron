@@ -25,13 +25,14 @@ macro_rules! fp31 {
          */
         //Large portions of this file are ported from the i31 implementations in BearSSL.
         pub mod $modname {
+            use alloc::string::String;
+            use core::cmp::Ordering;
+            use core::convert::From;
+            use core::fmt;
+            use core::marker;
+            use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+            use core::option::Option;
             use num_traits::{Inv, One, Pow, Zero};
-            use std::cmp::Ordering;
-            use std::convert::From;
-            use std::fmt;
-            use std::marker;
-            use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
-            use std::option::Option;
             use $crate::digits::constant_bool::*;
             use $crate::digits::constant_time_primitives::*;
             use $crate::digits::util;
@@ -117,8 +118,9 @@ macro_rules! fp31 {
                 }
             }
 
+            #[cfg(test)]
             impl fmt::Debug for $classname {
-                fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                     write!(f, "{}(", stringify!($classname))?;
                     let x: Vec<String> = self.limbs.iter().map(|x| format!("{:#x}", x)).collect();
                     write!(f, "{}", x.join(", "))?;

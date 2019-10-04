@@ -5,10 +5,10 @@
 
 use crate::digits::constant_bool::*;
 use num_traits::{NumOps, One, Zero};
-use std::cmp::Ordering;
-use std::mem::size_of;
-use std::num::Wrapping;
-use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
+use core::cmp::Ordering;
+use core::mem::size_of;
+use core::num::Wrapping;
+use core::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 
 ///
 ///Values which support swapping the values in place.
@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn u64_const_eq0() {
-        assert_eq!(std::u64::MAX.const_eq0().0, ConstantBool::new_false().0);
+        assert_eq!(core::u64::MAX.const_eq0().0, ConstantBool::new_false().0);
 
         let zero: u64 = 0;
         assert_eq!(zero.const_eq0().0, ConstantBool::new_true().0);

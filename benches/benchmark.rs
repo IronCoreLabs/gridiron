@@ -8,8 +8,9 @@ use criterion::{black_box, Criterion};
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
-use rand::{RngCore, ThreadRng};
-use std::ops::Neg;
+use rand::{RngCore};
+use rand::rngs::ThreadRng;
+use core::ops::Neg;
 
 fn criterion_benchmark(c: &mut Criterion) {
     fn gen_rand_limbs(rng: &mut ThreadRng) -> [u32; fp_256::NUMLIMBS] {

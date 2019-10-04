@@ -1,4 +1,8 @@
+#![cfg_attr(not(test), no_std)]
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
+
+#[macro_use]
+extern crate alloc;
 
 #[macro_use]
 pub mod digits {

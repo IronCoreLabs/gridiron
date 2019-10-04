@@ -1,10 +1,9 @@
-Gridiron [![](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) [![](https://travis-ci.com/IronCoreLabs/gridiron.svg?branch=master)](https://travis-ci.com/IronCoreLabs/gridiron?branch=master)
-====================
+# Gridiron [![](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) [![](https://travis-ci.com/IronCoreLabs/gridiron.svg?branch=master)](https://travis-ci.com/IronCoreLabs/gridiron?branch=master)
 
 To use this library, you can either use one of the provided finite fields, or you can call the macro to create your own. The two that are included are:
 
-* `fp_480::Fp480`
-* `fp_256::Fp256`
+- `fp_480::Fp480`
+- `fp_256::Fp256`
 
 These were created like so:
 
@@ -47,21 +46,20 @@ These were created like so:
         2132269737
     );
 
-
 To use it, you'll need to import headers for the math operations you want. So, for example:
 
-    use std::ops::Add;
+    use core::ops::Add;
     let one = fp_256::Fp256::one();
     let two = one + one;
 
 All operations provided by the library are constant time (meaning that they are implemented to prevent a timing or memory access pattern side-channel attack from extracting a value that should be kept secret, such as a private key) except:
 
-`Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`. 
+`Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`.
 The will be much slower and typically the u64s are not secret values so it's ok for them to be non constant time.
 
 # Code Audit
 
 NCC Group's [Cryptography Services](https://www.nccgroup.trust/us/our-services/cyber-security/specialist-practices/cryptography-services/) team has conducted an audit of this library - release [0.6.0](https://github.com/IronCoreLabs/gridiron/releases/tag/0.6.0) contains all of the audited code, including updates that were created to resolve issues that were discovered during the audit. The NCC Group audit found that the chosen pairing and elliptic curve are cryptographically sound, and that the Rust implementation is a faithful and correct embodiment of the target protocol. In addition, the audit specifically looked for but did not find any leak of secret information via timing or memory access pattern side-channel attacks.
 
-Copyright (c)  2018-present  IronCore Labs, Inc.
+Copyright (c) 2018-present IronCore Labs, Inc.
 All rights reserved.

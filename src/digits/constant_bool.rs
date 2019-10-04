@@ -1,9 +1,9 @@
 use num_traits::{NumOps, One, Zero};
-use std::convert::From;
-use std::mem::size_of;
-use std::num::Wrapping;
-use std::ops::Shr;
-use std::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Neg, Not};
+use core::convert::From;
+use core::mem::size_of;
+use core::num::Wrapping;
+use core::ops::Shr;
+use core::ops::{BitAnd, BitOr, BitOrAssign, BitXor, Neg, Not};
 
 /*
  * Contents of this file heavily borrowed from or influenced by BearSSL by Thomas Pornin
