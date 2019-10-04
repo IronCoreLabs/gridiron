@@ -25,14 +25,35 @@ macro_rules! fp31 {
          */
         //Large portions of this file are ported from the i31 implementations in BearSSL.
         pub mod $modname {
+            #[cfg(feature = "no_std")]
             use alloc::string::String;
+            #[cfg(feature = "no_std")]
             use core::cmp::Ordering;
+            #[cfg(feature = "no_std")]
             use core::convert::From;
+            #[cfg(feature = "no_std")]
             use core::fmt;
+            #[cfg(feature = "no_std")]
             use core::marker;
+            #[cfg(feature = "no_std")]
             use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+            #[cfg(feature = "no_std")]
             use core::option::Option;
             use num_traits::{Inv, One, Pow, Zero};
+            #[cfg(not(feature = "no_std"))]
+            use std::cmp::Ordering;
+            #[cfg(not(feature = "no_std"))]
+            use std::convert::From;
+            #[cfg(not(feature = "no_std"))]
+            use std::fmt;
+            #[cfg(not(feature = "no_std"))]
+            use std::marker;
+            #[cfg(not(feature = "no_std"))]
+            use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
+            #[cfg(not(feature = "no_std"))]
+            use std::option::Option;
+            #[cfg(not(feature = "no_std"))]
+            use std::string::String;
             use $crate::digits::constant_bool::*;
             use $crate::digits::constant_time_primitives::*;
             use $crate::digits::util;

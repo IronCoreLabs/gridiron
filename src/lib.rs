@@ -1,6 +1,7 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(all(not(test), feature = "no_std"), no_std)]
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
 
+#[cfg(feature = "no_std")]
 #[macro_use]
 extern crate alloc;
 

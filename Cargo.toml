@@ -29,6 +29,7 @@ criterion = "0.2"
 
 [features]
 unstable = []
+no_std = []
 
 [profile.bench]
 opt-level = 3
