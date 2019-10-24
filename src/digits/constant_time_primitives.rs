@@ -414,5 +414,4 @@ mod tests {
             prop_assert_eq!(a.abs() as u64, result);
         }
     }
-
 }
