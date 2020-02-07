@@ -6,47 +6,39 @@ on:
 
 name: Gridiron
 
+
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
+  ci:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+          - 1.31.0  # MSRV
+
     steps:
       - uses: actions/checkout@v2
+
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
           override: true
+          components: rustfmt
+
       - uses: actions-rs/cargo@v1
         with:
-          command: check
+#          use-cross: true
+          command: build
 
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
 
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+
