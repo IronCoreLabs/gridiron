@@ -28,13 +28,14 @@ jobs:
           command: check
 
   build:
-    name: Platform Builds
+    name: Platform Builds (Linux)
     runs-on: ubuntu-18.04
     strategy:
       matrix:
         target:
-          - armv7-unknown-linux-gnueabihf
-          - powerpc64-unknown-linux-gnu
+          - armv7-linux-androideabi     # Android ARM7
+          - aarch64-linux-android       # Android x64
+          - x86_64-unknown-linux-musl   # Alpine Linux x86_64
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -45,6 +46,46 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
+
+  build:
+    name: Platform Builds (MacOS X)
+    runs-on: macos-10.15
+    strategy:
+      matrix:
+        target:
+          - armv7-apple-ios
+          - aarch64-apple-ios
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
+
+  build:
+    name: Platform Builds (Windows)
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
           command: build
           args: --release --target=${{ matrix.target }}
 
