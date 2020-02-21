@@ -5,40 +5,64 @@ on:
   pull_request:
 
 name: Gridiron
-
+ame: Continuous integration
 
 jobs:
-  ci:
+  check:
+    name: Check
     runs-on: ubuntu-18.04
     strategy:
       matrix:
         rust:
           - stable
           - beta
-          - nightly
-#          - 1.31.0  # MSRV
-
+          - 1.38.0
     steps:
       - uses: actions/checkout@v2
-
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           override: true
-          components: rustfmt
-
       - uses: actions-rs/cargo@v1
         with:
-#          use-cross: true
-          command: build
+          command: check
 
+  test:
+    name: Test Suite
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.38.0
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
 
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - nightly
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-
