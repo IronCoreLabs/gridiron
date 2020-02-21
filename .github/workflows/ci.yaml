@@ -28,7 +28,7 @@ jobs:
           command: check
 
   build_linux:
-    name: (Linux) Platform Builds 
+    name: (Linux) Builds 
     runs-on: ubuntu-18.04
     strategy:
       matrix:
@@ -51,7 +51,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_macos:
-    name: (MacOS X) Platform Builds 
+    name: (OS X) Builds 
     runs-on: macos-10.15
     strategy:
       matrix:
@@ -73,7 +73,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_win:
-    name: (Windows) Platform Builds 
+    name: (Windows) Builds 
     runs-on: windows-2019
     strategy:
       matrix:
