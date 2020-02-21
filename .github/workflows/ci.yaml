@@ -36,6 +36,7 @@ jobs:
           - armv7-linux-androideabi     # Android ARM7
           - aarch64-linux-android       # Android x64
           - x86_64-unknown-linux-musl   # Alpine Linux x86_64
+          - wasm32-unknown-unknown
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -78,25 +79,6 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --target=${{ matrix.target }}
-
-  build_wasm:
-    name: (WASM) Platform Builds 
-    runs-on: windows-2019
-    strategy:
-      matrix:
-        target:
-          - wasm32-unknown-unknown
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
