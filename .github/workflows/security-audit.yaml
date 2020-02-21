@@ -1,7 +1,7 @@
 name: Security Audit
 on:
   schedule:
-    - cron: "0 13 * * *"
+    - cron: "0 8 * * *" # 8AM UTC, 3PM MST
 jobs:
   audit:
     runs-on: ubuntu-18.04

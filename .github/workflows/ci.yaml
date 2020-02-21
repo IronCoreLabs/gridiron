@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - master, github-action
+      - master
   pull_request:
 
 name: Gridiron
@@ -15,7 +15,7 @@ jobs:
         rust:
           - stable
           - beta
-          - 1.38.0
+          - 1.38.0 #MSRV
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -28,7 +28,7 @@ jobs:
           command: check
 
   build_linux:
-    name: Platform Builds (Linux)
+    name: (Linux) Platform Builds 
     runs-on: ubuntu-18.04
     strategy:
       matrix:
@@ -50,7 +50,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_macos:
-    name: Platform Builds (MacOS X)
+    name: (MacOS X) Platform Builds 
     runs-on: macos-10.15
     strategy:
       matrix:
@@ -71,7 +71,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_win:
-    name: Platform Builds (Windows)
+    name: (Windows) Platform Builds 
     runs-on: windows-2019
     strategy:
       matrix:
@@ -107,6 +107,24 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+
+  # bench_build:
+  #   name: Bench Compile
+  #   runs-on: ubuntu-18.04
+  #   strategy:
+  #     matrix:
+  #       rust:
+  #         - stable
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: ${{ matrix.rust }}
+  #         override: true
+  #     - uses: actions-rs/cargo@v1
+  #       with:
+  #         command: bench --no-run
 
   fmt:
     name: Rustfmt
