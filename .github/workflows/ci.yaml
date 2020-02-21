@@ -57,6 +57,7 @@ jobs:
         target:
           - armv7-apple-ios
           - aarch64-apple-ios
+          - x86_64-apple-darwin # 64-bit OSX
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -89,6 +90,25 @@ jobs:
           command: build
           args: --release --target=${{ matrix.target }}
 
+  build_wasm:
+    name: (WASM) Platform Builds 
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        target:
+          - wasm32-unknown-unknown
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=${{ matrix.target }}
+
   test:
     name: Test Suite
     runs-on: ubuntu-18.04
@@ -108,6 +128,7 @@ jobs:
         with:
           command: test
 
+# commented out as the benches do not currently compile
   # bench_build:
   #   name: Bench Compile
   #   runs-on: ubuntu-18.04
