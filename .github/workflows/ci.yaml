@@ -1,0 +1,150 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+name: Gridiron
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - 1.38.0 #MSRV
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  build_linux:
+    name: (Linux) Builds 
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        target:
+          - armv7-linux-androideabi     # Android ARM7
+          - aarch64-linux-android       # Android x64
+          - x86_64-unknown-linux-musl   # Alpine Linux x86_64
+          - wasm32-unknown-unknown
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
+
+  build_macos:
+    name: (OS X) Builds 
+    runs-on: macos-10.15
+    strategy:
+      matrix:
+        target:
+          - armv7-apple-ios
+          - aarch64-apple-ios
+          - x86_64-apple-darwin # 64-bit OSX
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
+
+  build_win:
+    name: (Windows) Builds 
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=${{ matrix.target }}
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.38.0
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+# commented out as the benches do not currently compile
+  # bench_build:
+  #   name: Bench Compile
+  #   runs-on: ubuntu-18.04
+  #   strategy:
+  #     matrix:
+  #       rust:
+  #         - stable
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: ${{ matrix.rust }}
+  #         override: true
+  #     - uses: actions-rs/cargo@v1
+  #       with:
+  #         command: bench --no-run
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        rust:
+          - nightly
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
