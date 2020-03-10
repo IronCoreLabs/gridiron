@@ -1091,6 +1091,7 @@ macro_rules! fp31 {
                 // use limb_math;
                 use proptest::prelude::*;
                 use rand::rngs::OsRng;
+                use rand::RngCore;
                 use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]
@@ -1131,7 +1132,7 @@ macro_rules! fp31 {
                         } else if seed == 1 {
                             $classname::one()
                         } else {
-                            let mut rng = OsRng::new().expect("Failed to get random number");
+                            let mut rng = OsRng::default();
                             let mut limbs = [0u32; NUMLIMBS];
                             for limb in limbs.iter_mut() {
                                 *limb = rng.next_u32() & 0x7FFFFFFFu32;

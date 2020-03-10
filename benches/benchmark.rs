@@ -8,7 +8,8 @@ use criterion::{black_box, Criterion};
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
-use rand::{RngCore, ThreadRng};
+use rand::rngs::ThreadRng;
+use rand::RngCore;
 use std::ops::Neg;
 
 fn criterion_benchmark(c: &mut Criterion) {
