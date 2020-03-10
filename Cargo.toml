@@ -12,7 +12,7 @@ license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
 
 [dependencies]
-num-traits = "~0.2"
+num-traits = "~0.2.11"
 arrayref = "0.3.6"
 
 [profile.test]
@@ -24,8 +24,8 @@ overflow-checks = true
 
 [dev-dependencies]
 proptest = "0.9.4"
-rand = "~0.7"
-criterion = "0.2"
+rand = "~0.7.3"
+criterion = "~0.3.0"
 
 [features]
 unstable = []
