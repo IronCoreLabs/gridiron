@@ -35,6 +35,9 @@ macro_rules! fp31 {
             use $crate::digits::constant_bool::*;
             use $crate::digits::constant_time_primitives::*;
             use $crate::digits::util;
+            // Optional serde for PrivateKey and PublicKey structs
+            #[cfg(feature = "serde")]
+            use serde_crate::{Deserialize, Serialize};
 
             pub const LIMBSIZEBITS: usize = 31;
             pub const BITSPERBYTE: usize = 8;
@@ -58,6 +61,7 @@ macro_rules! fp31 {
             ///
             ///If you are doing more than 1 multiplication, it's clearly a win.
             #[derive(Debug, PartialEq, Eq, Ord, Clone, Copy)]
+            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
