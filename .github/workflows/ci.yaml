@@ -28,14 +28,13 @@ jobs:
           command: check
 
   build_linux:
-    name: (Linux) Builds 
+    name: (Linux) Builds
     runs-on: ubuntu-18.04
     strategy:
       matrix:
         target:
-          - armv7-linux-androideabi     # Android ARM7
-          - aarch64-linux-android       # Android x64
-          - x86_64-unknown-linux-musl   # Alpine Linux x86_64
+          - aarch64-linux-android # Android x64
+          - x86_64-unknown-linux-musl # Alpine Linux x86_64
           - wasm32-unknown-unknown
     steps:
       - uses: actions/checkout@v2
@@ -51,12 +50,11 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_macos:
-    name: (OS X) Builds 
+    name: (OS X) Builds
     runs-on: macos-10.15
     strategy:
       matrix:
         target:
-          - armv7-apple-ios
           - aarch64-apple-ios
           - x86_64-apple-darwin # 64-bit OSX
     steps:
@@ -73,7 +71,7 @@ jobs:
           args: --release --target=${{ matrix.target }}
 
   build_win:
-    name: (Windows) Builds 
+    name: (Windows) Builds
     runs-on: windows-2019
     strategy:
       matrix:
@@ -110,7 +108,7 @@ jobs:
         with:
           command: test
 
-# commented out as the benches do not currently compile
+  # commented out as the benches do not currently compile
   # bench_build:
   #   name: Bench Compile
   #   runs-on: ubuntu-18.04
