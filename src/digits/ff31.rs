@@ -61,7 +61,11 @@ macro_rules! fp31 {
             ///
             ///If you are doing more than 1 multiplication, it's clearly a win.
             #[derive(Debug, PartialEq, Eq, Ord, Clone, Copy)]
-            #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+            #[cfg_attr(
+                feature = "serde",
+                derive(Serialize, Deserialize),
+                serde(crate = "serde_crate")
+            )]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
