@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- [[#36]](https://github.com/IronCoreLabs/gridiron/pull/36)
+  - Update to proptest to 0.10 (Test only change)
+  - Change MSRV to Rust 1.40.0
+
 ## 0.7.0
 
 - [[#30]](https://github.com/IronCoreLabs/gridiron/pull/30) - Update to Rand 0.7 (Test only change)

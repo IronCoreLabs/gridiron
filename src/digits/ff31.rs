@@ -1229,7 +1229,7 @@ macro_rules! fp31 {
                     #[test]
                     #[should_panic]
                     fn div_by_zero_should_panic(a in arb_fp()) {
-                        a / $classname::zero()
+                        let _ = a / $classname::zero();
                     }
 
                     #[test]
