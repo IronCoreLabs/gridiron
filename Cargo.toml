@@ -23,7 +23,7 @@ incremental = true
 overflow-checks = true
 
 [dev-dependencies]
-proptest = "0.9.4"
+proptest = "~0.10"
 rand = "~0.7.3"
 criterion = "~0.3.0"
 
