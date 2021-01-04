@@ -24,7 +24,7 @@ overflow-checks = true
 
 [dev-dependencies]
 proptest = "~0.10"
-rand = "~0.7.3"
+rand = "~0.8.0"
 criterion = "~0.3.0"
 
 [features]
