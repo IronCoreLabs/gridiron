@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+- [[#37]](https://github.com/IronCoreLabs/gridiron/pull/37)
+  - Update rand requirement from ~0.7.3 to ~0.8.0
+
+- [[#38]](https://github.com/IronCoreLabs/gridiron/pull/38)
+  - Update proptest requirement from ~0.10 to ~1.0 (#38)
+
+- [[#39]](https://github.com/IronCoreLabs/gridiron/pull/39)
+  - Fix proptest issue where passing test wrote a regression file.
+
 ## 0.8.0
 
 - [[#36]](https://github.com/IronCoreLabs/gridiron/pull/36)
