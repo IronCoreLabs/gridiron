@@ -1227,9 +1227,8 @@ macro_rules! fp31 {
                     }
 
                     #[test]
-                    #[should_panic]
                     fn div_by_zero_should_panic(a in arb_fp()) {
-                        let _ = a / $classname::zero();
+                        assert!(std::panic::catch_unwind(|| a / $classname::zero()).is_err());
                     }
 
                     #[test]
