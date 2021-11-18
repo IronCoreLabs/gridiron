@@ -10,6 +10,7 @@ readme = "README.md"
 categories = ["cryptography", "wasm"]
 license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
+rust-version = "1.56.0"
 
 [dependencies]
 num-traits = "~0.2.11"
