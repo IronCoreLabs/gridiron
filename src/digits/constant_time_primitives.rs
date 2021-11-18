@@ -113,7 +113,7 @@ pub trait ConstantUnsignedArray31 {
     fn const_lt(self, y: Self) -> ConstantBool<u32>;
     fn const_le(self, y: Self) -> ConstantBool<u32>;
     fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u32>);
-    fn const_ordering(&self, y: &Self) -> Option<Ordering>;
+    fn const_ordering(&self, y: &Self) -> Ordering;
 }
 macro_rules! constant_unsigned_array31 { ($($N:expr),*) => { $(
 /// Must have maximum of 31-bits used per limb
@@ -169,17 +169,17 @@ impl ConstantUnsignedArray31 for [u32; $N] {
         self.const_lt(y).not()
     }
 
-    fn const_ordering(&self, y:&Self) -> Option<Ordering> {
+    fn const_ordering(&self, y:&Self) -> Ordering{
         let mut res = 0u64;
         self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
             let limbcmp = (l.const_gt(*r).0 as u64) | ((r.const_gt(*l).0 as u64).wrapping_neg());
             res = res.const_abs().mux(res, limbcmp);
         });
         match res as i64 {
-            -1 => Some(Ordering::Less),
-            0 => Some(Ordering::Equal),
-            1 => Some(Ordering::Greater),
-            _ => None
+            -1 => Ordering::Less,
+            0 => Ordering::Equal,
+            1 => Ordering::Greater,
+            _ => panic!("The operation above can only produce 1,0,-1.")
         }
     }
 
@@ -336,14 +336,14 @@ mod tests {
         ];
         let little = [4u32; 9];
 
-        assert_eq!(max.const_ordering(&big).unwrap(), Ordering::Greater);
-        assert_eq!(big.const_ordering(&max).unwrap(), Ordering::Less);
-        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
-        assert_eq!(little.const_ordering(&max).unwrap(), Ordering::Less);
-        assert_eq!(max.const_ordering(&little).unwrap(), Ordering::Greater);
-        assert_eq!(little.const_ordering(&big).unwrap(), Ordering::Less);
-        assert_eq!(little.const_ordering(&little).unwrap(), Ordering::Equal);
-        assert_eq!(max.const_ordering(&max).unwrap(), Ordering::Equal);
+        assert_eq!(max.const_ordering(&big), Ordering::Greater);
+        assert_eq!(big.const_ordering(&max), Ordering::Less);
+        assert_eq!(max.const_ordering(&little), Ordering::Greater);
+        assert_eq!(little.const_ordering(&max), Ordering::Less);
+        assert_eq!(max.const_ordering(&little), Ordering::Greater);
+        assert_eq!(little.const_ordering(&big), Ordering::Less);
+        assert_eq!(little.const_ordering(&little), Ordering::Equal);
+        assert_eq!(max.const_ordering(&max), Ordering::Equal);
     }
 
     #[test]

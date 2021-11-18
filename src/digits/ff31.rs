@@ -48,7 +48,7 @@ macro_rules! fp31 {
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
             pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
-            #[derive(PartialEq, Eq, Ord, Clone, Copy)]
+            #[derive(PartialEq, Eq, Clone, Copy)]
             pub struct $classname {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
@@ -57,7 +57,7 @@ macro_rules! fp31 {
             ///as the conversion to Montgomery form + multiplication is as fast as normal multiplication + reduction.
             ///
             ///If you are doing more than 1 multiplication, it's clearly a win.
-            #[derive(Debug, PartialEq, Eq, Ord, Clone, Copy)]
+            #[derive(Debug, PartialEq, Eq, Clone, Copy)]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
@@ -138,6 +138,13 @@ macro_rules! fp31 {
             impl PartialOrd for $classname {
                 #[inline]
                 fn partial_cmp(&self, other: &$classname) -> Option<Ordering> {
+                    Some(self.cmp(&other))
+                }
+            }
+
+            impl Ord for $classname {
+                #[inline]
+                fn cmp(&self, other: &$classname) -> Ordering {
                     self.limbs.const_ordering(&other.limbs)
                 }
             }
@@ -557,6 +564,13 @@ macro_rules! fp31 {
             impl PartialOrd for Monty {
                 #[inline]
                 fn partial_cmp(&self, other: &Monty) -> Option<Ordering> {
+                    Some(self.cmp(&other))
+                }
+            }
+
+            impl Ord for Monty {
+                #[inline]
+                fn cmp(&self, other: &Monty) -> Ordering {
                     self.limbs.const_ordering(&other.limbs)
                 }
             }
