@@ -90,14 +90,14 @@ fp31!(
 
 impl From<[u8; 64]> for fp_256::Fp256 {
     fn from(src: [u8; 64]) -> Self {
-        //In order to reduce a arbitrary integer we can break it up into pieces which are at most NUMLIMBS - 1 long and multiply it by REDUCTION_CONST using the following
+        // In order to reduce a arbitrary integer we can break it up into pieces which are at most NUMLIMBS - 1 long and multiply it by REDUCTION_CONST using the following
         // formula. x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2). In order to do this using only the one precomputed REDUCTION_CONST we can use Horner's method to evaluate
         // the polynomial to make it (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0. Note that this implementation is specific for 64 bytes, but the idea has no limit on the length
         // of the incoming number.
         let limbs = from_sixty_four_bytes(src);
-        //Create fixed size views which are at most NUMLIMBS -1 in length.
-        let (x0_view, x1_view, x2_view) =
-            arrayref::array_refs![&limbs, fp_256::NUMLIMBS - 1, fp_256::NUMLIMBS - 1, 1];
+        // Create fixed size views which are at most NUMLIMBS -1 in length.
+        let (x0_view, x1_and_2_view) = limbs.split_at(fp_256::NUMLIMBS - 1);
+        let (x1_view, x2_view) = x1_and_2_view.split_at(fp_256::NUMLIMBS - 1);
         //Create 0 padded values that match the above views.
         let (mut x0, mut x1, mut x2) = (
             [0u32; fp_256::NUMLIMBS],
@@ -105,9 +105,9 @@ impl From<[u8; 64]> for fp_256::Fp256 {
             [0u32; fp_256::NUMLIMBS],
         );
         //This stinks, but I can't find a better way. We copy the views into the front of each of the limbs, leaving them padded to the right with 0s.
-        x0[..fp_256::NUMLIMBS - 1].copy_from_slice(&x0_view[..]);
-        x1[..fp_256::NUMLIMBS - 1].copy_from_slice(&x1_view[..]);
-        x2[..1].copy_from_slice(&x2_view[..]);
+        x0[..fp_256::NUMLIMBS - 1].copy_from_slice(x0_view);
+        x1[..fp_256::NUMLIMBS - 1].copy_from_slice(x1_view);
+        x2[..1].copy_from_slice(x2_view);
 
         //We take x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2) and use horner's method to reduce it to (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0
         (fp_256::Fp256::new(x2) * fp_256::REDUCTION_CONST + fp_256::Fp256::new(x1))
@@ -126,10 +126,11 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
         //See the 256 version for a play by play of this function.
         let limbs = from_sixty_four_bytes(src);
-        let (x0_view, x1_view) = arrayref::array_refs![&limbs, fp_480::NUMLIMBS - 1, 2];
+        let (x0_view, x1_view) = limbs.split_at(fp_480::NUMLIMBS - 1);
+        // let (x0_view, x1_view) = arrayref::array_refs![&limbs, fp_480::NUMLIMBS - 1, 2];
         let (mut x0, mut x1) = ([0u32; 16], [0u32; 16]);
-        x0[..fp_480::NUMLIMBS - 1].copy_from_slice(&x0_view[..]);
-        x1[..2].copy_from_slice(&x1_view[..]);
+        x0[..fp_480::NUMLIMBS - 1].copy_from_slice(x0_view);
+        x1[..2].copy_from_slice(x1_view);
 
         fp_480::Fp480::new(x1) * fp_480::REDUCTION_CONST + fp_480::Fp480::new(x0)
     }

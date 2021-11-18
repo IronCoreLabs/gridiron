@@ -8,7 +8,7 @@
 ///                     2 ^ (31 * (limbs - 1)) * R % prime. This reduces to 2^(31 *(2*limbs -1)) % prime).
 /// - montgomery_one - Montgomery One is R mod p where R is 2^(31*limbs).
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
-/// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime[0]; (-m0).inverse_mod(2^31)
+/// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime\[0\]; (-m0).inverse_mod(2^31)
 #[macro_export]
 macro_rules! fp31 {
     ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $reduction_const: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
@@ -17,7 +17,7 @@ macro_rules! fp31 {
          *
          * 31 bit numbers allow us to work well in WASM as well as other 32 bit architectures with greater speed than 32 bits (or 64 bits).
          * This is because when you use only 31 bits you don't have to deal with carries that go outside the limb size as often.
-         * This is explained very well by Thomas in his writeup in BearSSL (https://www.bearssl.org/bigint.html).
+         * This is explained very well by Thomas in his writeup in BearSSL <https://www.bearssl.org/bigint.html>.
          *
          * We technically could go to something larger (like 62) if we only wanted to be fast on 64 bit machines, but this is the lowest common
          * denominator, so we decided to start here. In the future it would be nice to allow the internal representation to be chosen
@@ -48,7 +48,7 @@ macro_rules! fp31 {
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
             pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
-            #[derive(PartialEq, Eq, Ord, Clone, Copy)]
+            #[derive(PartialEq, Eq, Clone, Copy)]
             pub struct $classname {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
@@ -57,7 +57,7 @@ macro_rules! fp31 {
             ///as the conversion to Montgomery form + multiplication is as fast as normal multiplication + reduction.
             ///
             ///If you are doing more than 1 multiplication, it's clearly a win.
-            #[derive(Debug, PartialEq, Eq, Ord, Clone, Copy)]
+            #[derive(Debug, PartialEq, Eq, Clone, Copy)]
             pub struct Monty {
                 pub(crate) limbs: [u32; NUMLIMBS],
             }
@@ -88,7 +88,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn next_back(&mut self) -> Option<ConstantBool<u32>> {
                     let limbs = unsafe { (*self.p).limbs };
-                    if self.endindex > 0 && self.index <= self.endindex - 1 {
+                    if self.endindex > 0 && self.index < self.endindex {
                         self.endindex -= 1;
                         Some($classname::test_bit(&limbs, self.endindex))
                     } else {
@@ -138,6 +138,13 @@ macro_rules! fp31 {
             impl PartialOrd for $classname {
                 #[inline]
                 fn partial_cmp(&self, other: &$classname) -> Option<Ordering> {
+                    Some(self.cmp(&other))
+                }
+            }
+
+            impl Ord for $classname {
+                #[inline]
+                fn cmp(&self, other: &$classname) -> Ordering {
                     self.limbs.const_ordering(&other.limbs)
                 }
             }
@@ -557,6 +564,13 @@ macro_rules! fp31 {
             impl PartialOrd for Monty {
                 #[inline]
                 fn partial_cmp(&self, other: &Monty) -> Option<Ordering> {
+                    Some(self.cmp(&other))
+                }
+            }
+
+            impl Ord for Monty {
+                #[inline]
+                fn cmp(&self, other: &Monty) -> Ordering {
                     self.limbs.const_ordering(&other.limbs)
                 }
             }
