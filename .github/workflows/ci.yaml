@@ -9,7 +9,7 @@ name: Gridiron
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         rust:
@@ -29,7 +29,7 @@ jobs:
 
   build_linux:
     name: (Linux) Builds
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         target:
@@ -91,7 +91,7 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         rust:
@@ -111,7 +111,7 @@ jobs:
   # commented out as the benches do not currently compile
   # bench_build:
   #   name: Bench Compile
-  #   runs-on: ubuntu-18.04
+  #   runs-on: ubuntu-22.04
   #   strategy:
   #     matrix:
   #       rust:
@@ -129,7 +129,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         rust:
