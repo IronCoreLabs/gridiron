@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- [[#42]](https://github.com/IronCoreLabs/gridiron/pull/42)
+  - Update to criterion 0.4 (Test only change)
+  - Change MSRV to Rust 1.57.0
+
 ## 0.9.0
 
 - [[#37]](https://github.com/IronCoreLabs/gridiron/pull/37)
