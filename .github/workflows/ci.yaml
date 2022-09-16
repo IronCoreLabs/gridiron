@@ -51,7 +51,7 @@ jobs:
 
   build_macos:
     name: (OS X) Builds
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       matrix:
         target:
