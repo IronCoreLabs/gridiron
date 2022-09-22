@@ -10,7 +10,7 @@ readme = "README.md"
 categories = ["cryptography", "wasm"]
 license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
-rust-version = "1.56.0"
+rust-version = "1.57.0"
 
 [dependencies]
 num-traits = "~0.2.11"
@@ -25,7 +25,7 @@ overflow-checks = true
 [dev-dependencies]
 proptest = "~1.0"
 rand = "~0.8.0"
-criterion = "~0.3.0"
+criterion = "~0.4.0"
 
 [features]
 unstable = []
