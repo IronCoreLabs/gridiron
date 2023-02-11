@@ -1,10 +1,5 @@
-#[macro_use]
-extern crate criterion;
-extern crate gridiron;
-extern crate num_traits;
-extern crate rand;
-
 use criterion::{black_box, Criterion};
+use criterion::{criterion_group, criterion_main};
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
@@ -201,7 +196,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 |a| {
                     for _ in 0..100 {
                         let byte_array = a.to_bytes_array();
-                        fp_256::Fp256::from(byte_array);
+                        let _ = fp_256::Fp256::from(byte_array);
                     }
                 },
             );
@@ -331,7 +326,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 |a| {
                     for _ in 0..100 {
                         let byte_array = a.to_bytes_array();
-                        fp_480::Fp480::from(byte_array);
+                        let _ = fp_480::Fp480::from(byte_array);
                     }
                 },
             );

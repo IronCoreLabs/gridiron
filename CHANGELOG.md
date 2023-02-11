@@ -2,20 +2,21 @@
 
 ## Unreleased
 
-- [[#42]](https://github.com/IronCoreLabs/gridiron/pull/42)
-  - Update to criterion 0.4 (Test only change)
-  - Change MSRV to Rust 1.57.0
+- [[#44]](https://github.com/IronCoreLabs/gridiron/pull/44) - Change MSRV to Rust 1.60.0
+
+- [[#42]](https://github.com/IronCoreLabs/gridiron/pull/42) - Update to criterion 0.4 (Test only change)
+
+- [[#40]](https://github.com/IronCoreLabs/gridiron/pull/40)
+  - Remove arrayref dependency
+  - Switch to Rust 2021 edition
 
 ## 0.9.0
 
-- [[#37]](https://github.com/IronCoreLabs/gridiron/pull/37)
-  - Update rand requirement from ~0.7.3 to ~0.8.0
+- [[#37]](https://github.com/IronCoreLabs/gridiron/pull/37) - Update rand requirement from ~0.7.3 to ~0.8.0 (Test only change)
 
-- [[#38]](https://github.com/IronCoreLabs/gridiron/pull/38)
-  - Update proptest requirement from ~0.10 to ~1.0 (#38)
+- [[#38]](https://github.com/IronCoreLabs/gridiron/pull/38) - Update proptest requirement from ~0.10 to ~1.0 (Test only change)
 
-- [[#39]](https://github.com/IronCoreLabs/gridiron/pull/39)
-  - Fix proptest issue where passing test wrote a regression file.
+- [[#39]](https://github.com/IronCoreLabs/gridiron/pull/39) - Fix proptest issue where passing test wrote a regression file.
 
 ## 0.8.0
 
