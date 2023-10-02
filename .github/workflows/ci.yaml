@@ -15,7 +15,7 @@ jobs:
         rust_version:
         - stable
         - beta
-        - 1.60.0 # MSRV
+        - 1.69.0 # MSRV
     steps:
     - uses: actions/checkout@v3
     - uses: IronCoreLabs/rust-toolchain@v1
@@ -88,7 +88,7 @@ jobs:
       matrix:
         rust_version:
         - stable
-        - 1.60.0
+        - 1.69.0
     steps:
     - uses: actions/checkout@v3
     - uses: IronCoreLabs/rust-toolchain@v1
