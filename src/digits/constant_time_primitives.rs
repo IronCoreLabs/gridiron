@@ -101,7 +101,7 @@ impl ConstantUnsignedPrimitives for $T {
     }
 }
 )+ }}
-constant_unsigned! { u64, u32 }
+constant_unsigned! { u128, u64, u32 }
 
 pub trait ConstantUnsignedArray31 {
     fn const_eq(self, y: Self) -> ConstantBool<u32>;
