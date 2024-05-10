@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- [[#52]](https://github.com/IronCoreLabs/gridiron/pull/52) 
+- [[#52]](https://github.com/IronCoreLabs/gridiron/pull/52)
   - Update to criterion 0.5 (Test only change)
   - Change MSRV to Rust 1.70.0
 
