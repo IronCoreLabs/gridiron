@@ -3,15 +3,17 @@
 /// - classname - the name of the Fp struct
 /// - bits - How many bits the prime is.
 /// - limbs - Number of limbs (ceil(bits/31))
+/// - limbs_sixty_two - Number of limbs in 62 bit (ceil(bits/62))
 /// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
 /// - reduction_const - This is a constant which is used to do reduction of an arbitrary size value using Monty. This value is precomputed and is defined as:
-///                     2 ^ (31 * (limbs - 1)) * R % prime. This reduces to 2^(31 *(2*limbs -1)) % prime).
+///                     22^(62*(2*limbs_sixty_two-1)) mod p.
 /// - montgomery_one - Montgomery One is R mod p where R is 2^(31*limbs).
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
 /// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime\[0\]; (-m0).inverse_mod(2^31)
+/// - m0_inv_sixty_two - The first element of the prime negated, inverted and modded by 62, which is double our limb size. m0 = prime\[0\]; (-m0).inverse_mod(2^62)
 #[macro_export]
 macro_rules! fp31 {
-    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $limbs_sixty_two: tt, $prime: expr, $reduction_const: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr, $montgomery_m0_inv_2: expr) => {
+    ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $limbs_sixty_two: tt, $prime: expr, $reduction_const: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr, $montgomery_m0_inv_sixty_two: expr) => {
         /**
          * Why 31 bit?
          *
@@ -47,7 +49,7 @@ macro_rules! fp31 {
             pub const MONTONE: Monty = Monty::new($montgomery_one);
             pub const MONTRSQUARED: Monty = Monty::new($montgomery_r_squared);
             pub const MONTM0INV: u32 = $montgomery_m0_inv;
-            pub const MONTM0INV2: u64 = $montgomery_m0_inv_2;
+            pub const MONTM0INV2: u64 = $montgomery_m0_inv_sixty_two;
             pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
             #[derive(PartialEq, Eq, Clone, Copy)]
