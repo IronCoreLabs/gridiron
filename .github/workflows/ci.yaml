@@ -131,4 +131,4 @@ jobs:
         args: --all -- --check
     - name: Cancel workflow
       if: failure()
-      uses: andymckay/cancel-action@0.4
+      uses: andymckay/cancel-action@0.5
