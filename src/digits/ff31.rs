@@ -1104,8 +1104,8 @@ macro_rules! fp31 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::rngs::OsRng;
                 use rand::TryRngCore;
+                use rand::rngs::OsRng;
                 use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]

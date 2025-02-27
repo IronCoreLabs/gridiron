@@ -1,7 +1,7 @@
 [package]
 name = "gridiron"
 version = "0.10.0"
-edition = "2021"
+edition = "2024"
 authors = ["IronCore Labs <code at ironcorelabs.com>"]
 repository = "https://github.com/IronCoreLabs/gridiron"
 description = "Rust finite field library with fixed size multi-word values."
@@ -10,7 +10,7 @@ readme = "README.md"
 categories = ["cryptography", "wasm"]
 license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
-rust-version = "1.74.0"
+rust-version = "1.85.0"
 
 [dependencies]
 num-traits = "0.2.11"

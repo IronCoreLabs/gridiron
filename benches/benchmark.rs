@@ -1,10 +1,10 @@
-use criterion::{black_box, Criterion};
+use criterion::{Criterion, black_box};
 use criterion::{criterion_group, criterion_main};
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
-use rand::rngs::ThreadRng;
 use rand::RngCore;
+use rand::rngs::ThreadRng;
 use std::ops::Neg;
 
 fn criterion_benchmark(c: &mut Criterion) {
