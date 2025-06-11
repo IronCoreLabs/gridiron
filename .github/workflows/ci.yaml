@@ -9,7 +9,7 @@ name: Gridiron
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
@@ -27,7 +27,7 @@ jobs:
 
   build_linux:
     name: (Linux) Builds
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         target:
@@ -66,7 +66,7 @@ jobs:
 
   build_win:
     name: (Windows) Builds
-    runs-on: windows-2019
+    runs-on: windows-2025
     strategy:
       matrix:
         target:
@@ -83,7 +83,7 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
@@ -100,7 +100,7 @@ jobs:
 
   bench_build:
     name: Bench Compile
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
@@ -114,7 +114,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
