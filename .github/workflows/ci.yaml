@@ -17,7 +17,7 @@ jobs:
           - beta
           - 1.85.0 # MSRV
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
@@ -35,7 +35,7 @@ jobs:
           - x86_64-unknown-linux-musl # Alpine Linux x86_64
           - wasm32-unknown-unknown
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           targets: ${{ matrix.target }}
@@ -54,7 +54,7 @@ jobs:
           - aarch64-apple-ios
           - x86_64-apple-darwin # 64-bit OSX
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           targets: ${{ matrix.target }}
@@ -72,7 +72,7 @@ jobs:
         target:
           - x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           targets: ${{ matrix.target }}
@@ -90,7 +90,7 @@ jobs:
           - stable
           - 1.85.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
@@ -106,7 +106,7 @@ jobs:
         rust_version:
           - stable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
@@ -120,7 +120,7 @@ jobs:
         rust_version:
           - nightly
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
