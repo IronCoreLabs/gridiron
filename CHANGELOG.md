@@ -1,8 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
 
-- [[#52]](https://github.com/IronCoreLabs/gridiron/pull/52) 
+- [[#57]](https://github.com/IronCoreLabs/gridiron/pull/57) - Update rand to 0.9
+
+- [[#58]](https://github.com/IronCoreLabs/gridiron/pull/58) - Update MSRV to 1.85.0 & rust edition 2024
+
+- [[#59]](https://github.com/IronCoreLabs/gridiron/pull/59) - Update to criterion 0.6 (Test only change)
+
+
+## 0.10.0
+
+- [[#52]](https://github.com/IronCoreLabs/gridiron/pull/52)
   - Update to criterion 0.5 (Test only change)
   - Change MSRV to Rust 1.70.0
 
