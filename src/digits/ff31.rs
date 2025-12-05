@@ -709,7 +709,7 @@ macro_rules! fp31 {
                 }
 
                 #[inline]
-                pub fn iter_bit(&self) -> FpBitIter<$classname> {
+                pub fn iter_bit(&self) -> FpBitIter<'_, $classname> {
                     FpBitIter {
                         p: self.as_ptr(),
                         index: 0,
