@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-    - main
+      - main
   pull_request:
 
 name: Gridiron
@@ -9,126 +9,126 @@ name: Gridiron
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
-        - stable
-        - beta
-        - 1.70.0 # MSRV
+          - stable
+          - beta
+          - 1.88.0 # MSRV
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust_version }}
-    - uses: actions-rs/cargo@v1
-      with:
-        command: check
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
 
   build_linux:
     name: (Linux) Builds
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         target:
-        - aarch64-linux-android # Android x64
-        - x86_64-unknown-linux-musl # Alpine Linux x86_64
-        - wasm32-unknown-unknown
+          - aarch64-linux-android # Android x64
+          - x86_64-unknown-linux-musl # Alpine Linux x86_64
+          - wasm32-unknown-unknown
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        targets: ${{ matrix.target }}
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        command: build
-        args: --release --target=${{ matrix.target }}
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
 
   build_macos:
     name: (OS X) Builds
-    runs-on: macos-12
+    runs-on: macos-14
     strategy:
       matrix:
         target:
-        - aarch64-apple-ios
-        - x86_64-apple-darwin # 64-bit OSX
+          - aarch64-apple-ios
+          - x86_64-apple-darwin # 64-bit OSX
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        targets: ${{ matrix.target }}
-    - uses: actions-rs/cargo@v1
-      with:
-        use-cross: true
-        command: build
-        args: --release --target=${{ matrix.target }}
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}
 
   build_win:
     name: (Windows) Builds
-    runs-on: windows-2019
+    runs-on: windows-2025
     strategy:
       matrix:
         target:
-        - x86_64-pc-windows-msvc
+          - x86_64-pc-windows-msvc
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        targets: ${{ matrix.target }}
-    - uses: actions-rs/cargo@v1
-      with:
-        command: build
-        args: --release --target=${{ matrix.target }}
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target=${{ matrix.target }}
 
   test:
     name: Test Suite
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
-        - stable
-        - 1.70.0
+          - stable
+          - 1.88.0
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust_version }}
-    - uses: actions-rs/cargo@v1
-      with:
-        command: test
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
 
   bench_build:
     name: Bench Compile
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
-        - stable
+          - stable
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust_version }}
-    - run: cargo bench --no-run
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+      - run: cargo bench --no-run
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         rust_version:
-        - nightly
+          - nightly
     steps:
-    - uses: actions/checkout@v4
-    - uses: IronCoreLabs/rust-toolchain@v1
-      with:
-        toolchain: ${{ matrix.rust_version }}
-        components: rustfmt
-    - uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
-    - name: Cancel workflow
-      if: failure()
-      uses: andymckay/cancel-action@0.4
+      - uses: actions/checkout@v6
+      - uses: IronCoreLabs/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+          components: rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Cancel workflow
+        if: failure()
+        uses: andymckay/cancel-action@0.5

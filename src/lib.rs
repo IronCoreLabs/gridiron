@@ -308,7 +308,10 @@ mod lib {
     fn hex_dec_print() {
         let p = fp_480::Fp480::new(fp_480::PRIME);
         // assert_eq!(p.to_str_decimal().as_str(),  "3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023");
-        assert_eq!(p.to_str_hex().as_str(),  "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497");
+        assert_eq!(
+            p.to_str_hex().as_str(),
+            "fffc66640e249d9ec75ad5290b81a85d415797b931258da0d78b58a21c435cddb02e0add635a037371d1e9a40a5ec1d6ed637bd3695530683ee96497"
+        );
 
         let p = fp_256::Fp256::new(fp_256::PRIME);
         assert_eq!(
