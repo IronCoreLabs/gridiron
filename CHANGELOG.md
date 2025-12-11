@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0
+
+- **BREAKING**: Default limb size changed from 31-bit to 62-bit for ~1.5-2x performance improvement on 64-bit platforms
+  - For WASM or 32-bit platforms, use: `gridiron = { version = "0.12", default-features = false, features = ["limb31"] }`
+  - API is unchanged - this is purely a compile-time change
+
+- Update MSRV to 1.88.0
+
 ## 0.11.0
 
 - [[#57]](https://github.com/IronCoreLabs/gridiron/pull/57) - Update rand to 0.9
@@ -7,7 +15,6 @@
 - [[#58]](https://github.com/IronCoreLabs/gridiron/pull/58) - Update MSRV to 1.85.0 & rust edition 2024
 
 - [[#59]](https://github.com/IronCoreLabs/gridiron/pull/59) - Update to criterion 0.6 (Test only change)
-
 
 ## 0.10.0
 

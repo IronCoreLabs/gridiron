@@ -1,13 +1,66 @@
-Gridiron [![](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) ![Gridiron](https://github.com/IronCoreLabs/gridiron/workflows/Gridiron/badge.svg)
-====================
+# Gridiron [![crates](https://img.shields.io/crates/v/gridiron.svg)](https://crates.io/crates/gridiron) [![docs](https://docs.rs/gridiron/badge.svg)](https://docs.rs/gridiron) ![Gridiron](https://github.com/IronCoreLabs/gridiron/workflows/Gridiron/badge.svg)
 
 To use this library, you can either use one of the provided finite fields, or you can call the macro to create your own. The two that are included are:
 
 * `fp_480::Fp480`
 * `fp_256::Fp256`
 
-These were created like so:
+## Macro Invocation Generation
 
+In order to call the `fp31` or `fp62` macros you'll need to do some math based on your large number. We've provided a script in [scripts](./scripts/README.md) that will help you generate those values correctly. Note that the generated module comes with all the tests to ensure the math works correctly.
+
+## Performance: Limb Size Selection
+
+Gridiron supports two internal representations via Cargo feature flags:
+
+* **62-bit limbs (default)**: ~1.5-2x faster on 64-bit platforms, not compatible with WASM or 32-bit platforms
+* **31-bit limbs**: WASM-compatible, works on all platforms (32-bit and 64-bit)
+
+### Usage
+
+**Default (62-bit limbs)** - 64-bit platforms only:
+
+```toml
+[dependencies]
+gridiron = "0.12"
+```
+
+**WASM/32-bit compatible (31-bit limbs)**:
+
+```toml
+[dependencies]
+gridiron = { version = "0.12", default-features = false, features = ["limb31"] }
+```
+
+### Platform Compatibility
+
+| Platform | 62-bit limbs | 31-bit limbs |
+|----------|--------------|--------------|
+| 64-bit | ✓ (default, faster) | ✓ |
+| WASM32 | ✗ | ✓ |
+| 32-bit | ✗ | ✓ |
+
+The API is identical between limb sizes - switching is purely a compile-time performance optimization.
+
+## Creating Custom Fields
+
+To create a custom finite field with your own prime number, use the `scripts/compute_constants.py` utility:
+
+```bash
+# For 31-bit limbs (WASM-compatible)
+nix-shell -p python3 --run "./scripts/compute_constants.py --limb-size 31 --prime YOUR_PRIME --module my_field --classname MyField --bits 256 --quiet"
+
+# For 62-bit limbs (64-bit platforms only)
+nix-shell -p python3 --run "./scripts/compute_constants.py --limb-size 62 --prime YOUR_PRIME --module my_field --classname MyField --bits 256 --quiet"
+```
+
+The script will compute all required Montgomery arithmetic constants and output a complete macro invocation ready to paste into your code. See `scripts/README.md` for more details.
+
+### Example
+
+The included fields were created like so:
+
+```rust
     // p = 65000549695646603732796438742359905742825358107623003571877145026864184071783
     fp31!(
         fp_256, // Name of mod
@@ -46,20 +99,22 @@ These were created like so:
         //          (-m).inverse_mod(2^31)
         2132269737
     );
-
+```
 
 To use it, you'll need to import headers for the math operations you want. So, for example:
 
+```rust
     use std::ops::Add;
     let one = fp_256::Fp256::one();
     let two = one + one;
+```
 
 All operations provided by the library are constant time (meaning that they are implemented to prevent a timing or memory access pattern side-channel attack from extracting a value that should be kept secret, such as a private key) except:
 
-`Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`. 
+`Mul<u64>`, `Pow<u64>` - If you need a constant time version of those, you can lift them into an Fp type and use `Mul<Fp>` and `Pow<Fp>`.
 The will be much slower and typically the u64s are not secret values so it's ok for them to be non constant time.
 
-# Code Audit
+## Code Audit
 
 NCC Group's [Cryptography Services](https://www.nccgroup.trust/us/our-services/cyber-security/specialist-practices/cryptography-services/) team has conducted an audit of this library - release [0.6.0](https://github.com/IronCoreLabs/gridiron/releases/tag/0.6.0) contains all of the audited code, including updates that were created to resolve issues that were discovered during the audit. The NCC Group audit found that the chosen pairing and elliptic curve are cryptographically sound, and that the Rust implementation is a faithful and correct embodiment of the target protocol. In addition, the audit specifically looked for but did not find any leak of secret information via timing or memory access pattern side-channel attacks.
 

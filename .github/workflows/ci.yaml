@@ -16,6 +16,9 @@ jobs:
           - stable
           - beta
           - 1.88.0 # MSRV
+        limb_size:
+          - limb31
+          - limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
@@ -24,6 +27,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --no-default-features --features ${{ matrix.limb_size }}
 
   build_linux:
     name: (Linux) Builds
@@ -34,6 +38,13 @@ jobs:
           - aarch64-linux-android # Android x64
           - x86_64-unknown-linux-musl # Alpine Linux x86_64
           - wasm32-unknown-unknown
+        limb_size:
+          - limb31
+          - limb62
+        exclude:
+          # WASM requires 31-bit limbs (no 64-bit integers in WASM32)
+          - target: wasm32-unknown-unknown
+            limb_size: limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
@@ -43,7 +54,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --target=${{ matrix.target }}
+          args: --release --target=${{ matrix.target }} --no-default-features --features ${{ matrix.limb_size }}
 
   build_macos:
     name: (OS X) Builds
@@ -53,6 +64,9 @@ jobs:
         target:
           - aarch64-apple-ios
           - x86_64-apple-darwin # 64-bit OSX
+        limb_size:
+          - limb31
+          - limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
@@ -62,7 +76,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --release --target=${{ matrix.target }}
+          args: --release --target=${{ matrix.target }} --no-default-features --features ${{ matrix.limb_size }}
 
   build_win:
     name: (Windows) Builds
@@ -71,6 +85,9 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
+        limb_size:
+          - limb31
+          - limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
@@ -79,7 +96,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target=${{ matrix.target }}
+          args: --release --target=${{ matrix.target }} --no-default-features --features ${{ matrix.limb_size }}
 
   test:
     name: Test Suite
@@ -89,6 +106,9 @@ jobs:
         rust_version:
           - stable
           - 1.88.0
+        limb_size:
+          - limb31
+          - limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
@@ -97,6 +117,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --no-default-features --features ${{ matrix.limb_size }}
 
   bench_build:
     name: Bench Compile
@@ -105,12 +126,15 @@ jobs:
       matrix:
         rust_version:
           - stable
+        limb_size:
+          - limb31
+          - limb62
     steps:
       - uses: actions/checkout@v6
       - uses: IronCoreLabs/rust-toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
-      - run: cargo bench --no-run
+      - run: cargo bench --no-run --no-default-features --features ${{ matrix.limb_size }}
 
   fmt:
     name: Rustfmt

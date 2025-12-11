@@ -2,27 +2,21 @@
 /// - modname - the name of the module you want the Fp type in.
 /// - classname - the name of the Fp struct
 /// - bits - How many bits the prime is.
-/// - limbs - Number of limbs (ceil(bits/31))
-/// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 31)`).
+/// - limbs - Number of limbs (ceil(bits/62))
+/// - prime - prime number in limbs, least significant digit first. (Note you can get this from `sage` using `num.digits(2 ^ 62)`).
 /// - reduction_const - This is a constant which is used to do reduction of an arbitrary size value using Monty. This value is precomputed and is defined as:
-///                     2 ^ (31 * (limbs - 1)) * R % prime. This reduces to 2^(31 *(2*limbs -1)) % prime).
-/// - montgomery_one - Montgomery One is R mod p where R is 2^(31*limbs).
+///                     2 ^ (62 * (limbs - 1)) * R % prime. This reduces to 2^(62 *(2*limbs -1)) % prime).
+/// - montgomery_one - Montgomery One is R mod p where R is 2^(62*limbs).
 /// - montgomery_r_squared - The above R should be used in this as well. R^2 mod prime
-/// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^31). m0 = prime\[0\]; (-m0).inverse_mod(2^31)
+/// - m0_inv - The first element of the prime negated, inverted and modded by our limb size (2^62). m0 = prime\[0\]; (-m0).inverse_mod(2^62)
 #[macro_export]
-macro_rules! fp31 {
+macro_rules! fp62 {
     ($modname: ident, $classname: ident, $bits: tt, $limbs: tt, $prime: expr, $reduction_const: expr, $montgomery_one: expr, $montgomery_r_squared: expr, $montgomery_m0_inv: expr) => {
         /**
-         * Why 31 bit?
-         *
-         * 31 bit numbers allow us to work well in WASM as well as other 32 bit architectures with greater speed than 32 bits (or 64 bits).
-         * This is because when you use only 31 bits you don't have to deal with carries that go outside the limb size as often.
-         * This is explained very well by Thomas in his writeup in BearSSL <https://www.bearssl.org/bigint.html>.
-         *
-         * We have a 62 bit port of this code in ff62.rs, which can be chosen by a compile time flag `limb62`. If you're working on a
-         * 64 bit architecture, that flag will increase performance by about 2x.
+         * This file is a 62 bit port of the implementations of ff31.rs, which was ultimately a port from BearSSL's bigint implementation.
+         * This is a fairly mechanical port, but is worth having separate because there are some small bits that make it much more clear this
+         * way.
          */
-        //Large portions of this file are ported from the i31 implementations in BearSSL.
         pub mod $modname {
             use num_traits::{Inv, One, Pow, Zero};
             use std::cmp::Ordering;
@@ -35,21 +29,21 @@ macro_rules! fp31 {
             use $crate::digits::constant_time_primitives::*;
             use $crate::digits::util;
 
-            pub const LIMBSIZEBITS: usize = 31;
+            pub const LIMBSIZEBITS: usize = 62;
             pub const BITSPERBYTE: usize = 8;
-            pub const PRIME: [u32; NUMLIMBS] = $prime;
+            pub const PRIME: [u64; NUMLIMBS] = $prime;
             pub const PRIMEBITS: usize = $bits;
             pub const PRIMEBYTES: usize = (PRIMEBITS + BITSPERBYTE - 1) / BITSPERBYTE;
             pub const NUMLIMBS: usize = $limbs;
             pub const NUMDOUBLELIMBS: usize = $limbs * 2;
             pub const MONTONE: Monty = Monty::new($montgomery_one);
             pub const MONTRSQUARED: Monty = Monty::new($montgomery_r_squared);
-            pub const MONTM0INV: u32 = $montgomery_m0_inv;
+            pub const MONTM0INV: u64 = $montgomery_m0_inv;
             pub const REDUCTION_CONST: Monty = Monty::new($reduction_const);
 
             #[derive(PartialEq, Eq, Clone, Copy)]
             pub struct $classname {
-                pub(crate) limbs: [u32; NUMLIMBS],
+                pub(crate) limbs: [u64; NUMLIMBS],
             }
 
             ///This is the Montgomery form of the $classname. This is typically used for its fast implementation of Multiplication
@@ -58,7 +52,7 @@ macro_rules! fp31 {
             ///If you are doing more than 1 multiplication, it's clearly a win.
             #[derive(Debug, PartialEq, Eq, Clone, Copy)]
             pub struct Monty {
-                pub(crate) limbs: [u32; NUMLIMBS],
+                pub(crate) limbs: [u64; NUMLIMBS],
             }
 
             /// Allows iteration over the bit representation of $classname starting with the least significant bit first
@@ -70,7 +64,7 @@ macro_rules! fp31 {
             }
 
             impl<'a> Iterator for FpBitIter<'a, $classname> {
-                type Item = ConstantBool<u32>;
+                type Item = ConstantBool<u64>;
                 #[inline]
                 fn next(&mut self) -> Option<Self::Item> {
                     self.index += 1;
@@ -85,7 +79,7 @@ macro_rules! fp31 {
 
             impl<'a> DoubleEndedIterator for FpBitIter<'a, $classname> {
                 #[inline]
-                fn next_back(&mut self) -> Option<ConstantBool<u32>> {
+                fn next_back(&mut self) -> Option<ConstantBool<u64>> {
                     let limbs = unsafe { (*self.p).limbs };
                     if self.endindex > 0 && self.index < self.endindex {
                         self.endindex -= 1;
@@ -96,20 +90,20 @@ macro_rules! fp31 {
                 }
             }
 
-            impl ConstantSwap<u32> for $classname {
+            impl ConstantSwap<u64> for $classname {
                 ///Swaps this with other if the value was true
                 #[inline]
-                fn swap_if(&mut self, other: &mut $classname, swap: ConstantBool<u32>) {
+                fn swap_if(&mut self, other: &mut $classname, swap: ConstantBool<u64>) {
                     let self_limbs = self.limbs;
                     self.limbs.const_copy_if(&other.limbs, swap);
                     other.limbs.const_copy_if(&self_limbs, swap);
                 }
             }
 
-            impl ConstantSwap<u32> for Monty {
+            impl ConstantSwap<u64> for Monty {
                 ///Swaps this with other if the value was true
                 #[inline]
-                fn swap_if(&mut self, other: &mut Monty, swap: ConstantBool<u32>) {
+                fn swap_if(&mut self, other: &mut Monty, swap: ConstantBool<u64>) {
                     let self_limbs = self.limbs;
                     self.limbs.const_copy_if(&other.limbs, swap);
                     other.limbs.const_copy_if(&self_limbs, swap);
@@ -152,7 +146,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn zero() -> Self {
                     $classname {
-                        limbs: [0u32; NUMLIMBS],
+                        limbs: [0u64; NUMLIMBS],
                     }
                 }
 
@@ -166,7 +160,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn one() -> Self {
                     let mut ret = $classname::zero();
-                    ret.limbs[0] = 1u32;
+                    ret.limbs[0] = 1u64;
                     ret
                 }
 
@@ -294,12 +288,12 @@ macro_rules! fp31 {
                     let mut x = self.limbs;
                     let y = rhs.limbs;
                     //Maybe we can do better here...
-                    if y.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
+                    if y.const_eq0().0 == ConstantBool::<u64>::new_true().0 {
                         panic!("Division by 0 is not defined.");
                     }
 
                     let result = $classname::div_mod(&mut x, &y);
-                    if result.0 != ConstantBool::<u32>::new_true().0 {
+                    if result.0 != ConstantBool::<u64>::new_true().0 {
                         panic!("Division not defined. This should not be allowed by our Fp types.");
                     }
 
@@ -319,15 +313,14 @@ macro_rules! fp31 {
             impl From<u8> for $classname {
                 fn from(src: u8) -> Self {
                     let mut result = $classname::zero();
-                    result.limbs[0] = src as u32;
+                    result.limbs[0] = src as u64;
                     result
                 }
             }
             impl From<u32> for $classname {
                 fn from(src: u32) -> Self {
                     let mut ret = $classname::zero();
-                    ret.limbs[0] = src & 0x7FFFFFFF;
-                    ret.limbs[1] = src >> 31;
+                    ret.limbs[0] = src as u64;
                     ret
                 }
             }
@@ -335,8 +328,8 @@ macro_rules! fp31 {
             impl From<u64> for $classname {
                 fn from(src: u64) -> Self {
                     let mut ret = $classname::zero();
-                    let bytes = util::split_u64_to_31b_array(src);
-                    ret.limbs[..3].copy_from_slice(&bytes[..3]);
+                    ret.limbs[0] = src & 0x3FFFFFFFFFFFFFFF;
+                    ret.limbs[1] = src >> 62;
                     ret
                 }
             }
@@ -367,7 +360,7 @@ macro_rules! fp31 {
             impl Monty {
                 ///Bring the montgomery form back into the $classname.
                 pub fn to_norm(self) -> $classname {
-                    let mut one = [0u32; NUMLIMBS];
+                    let mut one = [0u64; NUMLIMBS];
                     one[0] = 1;
                     $classname {
                         limbs: (self * Monty { limbs: one }).limbs,
@@ -376,7 +369,7 @@ macro_rules! fp31 {
 
                 ///Constructor. Note that this is unsafe if the limbs happen to be greater than your PRIME.
                 ///In that case you should use conversion to byte arrays or manually do the math on the limbs yourself.
-                pub const fn new(limbs: [u32; NUMLIMBS]) -> Monty {
+                pub const fn new(limbs: [u64; NUMLIMBS]) -> Monty {
                     Monty { limbs }
                 }
             }
@@ -389,46 +382,46 @@ macro_rules! fp31 {
                     // Constant time montgomery mult from https://www.bearssl.org/bigint.html
                     let a = self.limbs;
                     let b = rhs.limbs;
-                    let mut d = [0u32; NUMLIMBS]; // result
-                    let mut dh = 0u64; // can be up to 2W
+                    let mut d = [0u64; NUMLIMBS]; // result
+                    let mut dh = 0u128; // can be up to 2W
                     for i in 0..NUMLIMBS {
                         // f←(d[0]+a[i]b[0])g mod W
                         // g is MONTM0INV, W is word size
-                        // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 31 bits
-                        // MUL31_lo((d[1] + MUL31_lo(x[u + 1], y[1])), m0i);
-                        let f: u32 = $classname::mul_31_lo(
-                            d[0] + $classname::mul_31_lo(a[i], b[0]),
+                        // This might not be right, and certainly isn't optimal. Ideally we'd only calculate the low 62 bits
+                        // MUL62_lo((d[1] + MUL62_lo(x[u + 1], y[1])), m0i);
+                        let f: u64 = $classname::mul_62_lo(
+                            d[0] + $classname::mul_62_lo(a[i], b[0]),
                             MONTM0INV,
                         );
-                        let mut z: u64; // can be up to 2W^2
-                        let mut c: u64; // can be up to 2W
+                        let mut z: u128; // can be up to 2W^2
+                        let mut c: u128; // can be up to 2W
                         let ai = a[i];
 
-                        z = (ai as u64 * b[0] as u64)
-                            + (d[0] as u64)
-                            + (f as u64 * PRIME[0] as u64);
-                        c = z >> 31;
+                        z = (ai as u128 * b[0] as u128)
+                            + (d[0] as u128)
+                            + (f as u128 * PRIME[0] as u128);
+                        c = z >> 62;
                         for j in 1..NUMLIMBS {
                             // z ← d[j]+a[i]b[j]+fm[j]+c
-                            z = (ai as u64 * b[j] as u64)
-                                + (d[j] as u64)
-                                + (f as u64 * PRIME[j] as u64)
+                            z = (ai as u128 * b[j] as u128)
+                                + (d[j] as u128)
+                                + (f as u128 * PRIME[j] as u128)
                                 + c;
                             // c ← ⌊z/W⌋
-                            c = z >> 31;
+                            c = z >> 62;
                             // If j>0, set: d[j−1] ← z mod W
-                            d[j - 1] = (z & 0x7FFFFFFF) as u32;
+                            d[j - 1] = (z & 0x3FFFFFFFFFFFFFFF) as u64;
                         }
                         // z ← dh+c
                         z = dh + c;
                         // d[N−1] ← z mod W
-                        d[NUMLIMBS - 1] = (z & 0x7FFFFFFF) as u32;
+                        d[NUMLIMBS - 1] = (z & 0x3FFFFFFFFFFFFFFF) as u64;
                         // dh ← ⌊z/W⌋
-                        dh = z >> 31;
+                        dh = z >> 62;
                     }
 
                     // if dh≠0 or d≥m, set: d←d−m
-                    let dosub = ConstantBool(dh.const_neq(0).0 as u32) | d.const_ge(PRIME);
+                    let dosub = ConstantBool(dh.const_neq(0).0 as u64) | d.const_ge(PRIME);
                     $classname::sub_assign_limbs_if(&mut d, PRIME, dosub);
                     Monty { limbs: d }
                 }
@@ -457,7 +450,7 @@ macro_rules! fp31 {
             impl From<u8> for Monty {
                 fn from(src: u8) -> Self {
                     let mut result = $classname::zero();
-                    result.limbs[0] = src as u32;
+                    result.limbs[0] = src as u64;
                     result.to_monty()
                 }
             }
@@ -553,7 +546,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn div(self, rhs: Monty) -> Monty {
                     //Maybe we can do better here...
-                    if rhs.limbs.const_eq0().0 == ConstantBool::<u32>::new_true().0 {
+                    if rhs.limbs.const_eq0().0 == ConstantBool::<u64>::new_true().0 {
                         panic!("Division by 0 is not defined.");
                     }
                     (self * rhs.to_norm().inv()).to_monty()
@@ -578,7 +571,7 @@ macro_rules! fp31 {
                 #[inline]
                 fn zero() -> Self {
                     Monty {
-                        limbs: [0u32; NUMLIMBS],
+                        limbs: [0u64; NUMLIMBS],
                     }
                 }
 
@@ -616,7 +609,7 @@ macro_rules! fp31 {
                 /// This normalize should only be used when the input is at most
                 /// 2*p-1.
                 #[inline]
-                pub fn normalize_little_limbs(mut limbs: [u32; NUMLIMBS]) -> [u32; NUMLIMBS] {
+                pub fn normalize_little_limbs(mut limbs: [u64; NUMLIMBS]) -> [u64; NUMLIMBS] {
                     let needs_sub = limbs.const_ge(PRIME);
                     $classname::sub_assign_limbs_if(&mut limbs, PRIME, needs_sub);
                     limbs
@@ -630,49 +623,70 @@ macro_rules! fp31 {
                 }
 
                 ///Convert the value to a byte array which is `PRIMEBYTES` long.
-                ///Ported from BearSSL br_i31_encode.
+                ///Ported from BearSSL br_i31_encode and then converted to 62.
                 #[inline]
                 pub fn to_bytes_array(&self) -> [u8; PRIMEBYTES] {
                     let mut k: usize = 0;
-                    let mut acc = 0u32;
+                    let mut acc = 0u64;
                     let mut acc_len = 0u32;
                     // How many bytes are left.
                     let mut len = PRIMEBYTES;
                     let mut output: [u8; PRIMEBYTES] = [0u8; PRIMEBYTES];
                     let mut current_output_index = len;
                     while len != 0 {
-                        //If the NUMLIMBS is N where N = 1 mod 32 then k could read off the end of the array. We guard against that by giving 0.
+                        //If the NUMLIMBS is N where N = 1 mod 64 then k could read off the end of the array. We guard against that by giving 0.
                         let current_limb = if k < NUMLIMBS { self.limbs[k] } else { 0 };
                         k += 1;
                         if acc_len == 0 {
                             acc = current_limb;
-                            acc_len = 31;
+                            acc_len = 62;
                         } else {
                             //This is the value that will be written out to the byte array.
                             let to_write_out = acc | (current_limb << acc_len);
-                            acc_len -= 1;
-                            acc = current_limb >> (31 - acc_len);
-                            if len >= 4 {
-                                //Pull off 4 bytes and put them into the output buffer.
-                                current_output_index -= 4;
-                                len -= 4;
-                                util::u32_to_bytes_big_endian(
+                            // Decrement by 2 (not 1 like in ff31): writing 64 bits consumes 62 from acc + 2 from current_limb
+                            acc_len -= 2;
+                            acc = current_limb >> (62 - acc_len);
+                            if len >= 8 {
+                                //Pull off 8 bytes and put them into the output buffer.
+                                current_output_index -= 8;
+                                len -= 8;
+                                util::u64_to_bytes_big_endian(
                                     to_write_out,
-                                    &mut output[current_output_index..(current_output_index + 4)],
+                                    &mut output[current_output_index..(current_output_index + 8)],
                                 )
                             } else {
-                                //If we have less than 4 bytes left, manually pull off all 3 in succession.
-                                if len == 3 {
+                                //If we have less than 8 bytes left, manually pull off each byte in succession.
+                                if len >= 7 {
+                                    output[current_output_index - len] = (to_write_out >> 48) as u8;
+                                    len -= 1;
+                                }
+
+                                if len >= 6 {
+                                    output[current_output_index - len] = (to_write_out >> 40) as u8;
+                                    len -= 1;
+                                }
+
+                                if len >= 5 {
+                                    output[current_output_index - len] = (to_write_out >> 32) as u8;
+                                    len -= 1;
+                                }
+
+                                if len >= 4 {
+                                    output[current_output_index - len] = (to_write_out >> 24) as u8;
+                                    len -= 1;
+                                }
+
+                                if len >= 3 {
                                     output[current_output_index - len] = (to_write_out >> 16) as u8;
                                     len -= 1;
                                 }
 
-                                if len == 2 {
+                                if len >= 2 {
                                     output[current_output_index - len] = (to_write_out >> 8) as u8;
                                     len -= 1;
                                 }
 
-                                if len == 1 {
+                                if len >= 1 {
                                     output[current_output_index - len] = to_write_out as u8;
                                 }
                                 break;
@@ -684,7 +698,7 @@ macro_rules! fp31 {
 
                 ///Create a new instance given the raw limbs form. Note that this is least significant bit first.
                 #[allow(dead_code)]
-                pub fn new(digits: [u32; NUMLIMBS]) -> $classname {
+                pub fn new(digits: [u64; NUMLIMBS]) -> $classname {
                     $classname { limbs: digits }
                 }
 
@@ -697,7 +711,7 @@ macro_rules! fp31 {
                 }
 
                 #[inline]
-                fn test_bit(a: &[u32; NUMLIMBS], idx: usize) -> ConstantBool<u32> {
+                fn test_bit(a: &[u64; NUMLIMBS], idx: usize) -> ConstantBool<u64> {
                     let limb_idx = idx / LIMBSIZEBITS;
                     let limb_bit_idx = idx - limb_idx * LIMBSIZEBITS;
                     ConstantBool((a[limb_idx] >> limb_bit_idx) & 1)
@@ -718,28 +732,28 @@ macro_rules! fp31 {
                 }
 
                 ///Convert the src into the limbs. This _does not_ mod off the value. This will take the first
-                ///len bytes and split them into 31 bit limbs.
+                ///len bytes and split them into 62 bit limbs.
                 #[inline]
-                fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u32; NUMLIMBS] {
-                    let mut limbs = [0u32; NUMLIMBS];
-                    util::unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, len);
+                fn convert_bytes_to_limbs(src: [u8; PRIMEBYTES], len: usize) -> [u64; NUMLIMBS] {
+                    let mut limbs = [0u64; NUMLIMBS];
+                    util::unsafe_convert_bytes_to_limbs_mut_62(&src, &mut limbs, len);
                     limbs
                 }
 
                 ///Add a to b if `ctl` is true. Otherwise perform all the same access patterns but don't actually add.
                 #[inline]
                 fn add_assign_limbs_if(
-                    a: &mut [u32; NUMLIMBS],
-                    b: [u32; NUMLIMBS],
-                    ctl: ConstantBool<u32>,
-                ) -> ConstantBool<u32> {
-                    let mut cc = 0u32;
+                    a: &mut [u64; NUMLIMBS],
+                    b: [u64; NUMLIMBS],
+                    ctl: ConstantBool<u64>,
+                ) -> ConstantBool<u64> {
+                    let mut cc = 0u64;
                     for (aa, bb) in a.iter_mut().zip(b.iter()) {
                         let aw = *aa;
                         let bw = *bb;
                         let naw = aw.wrapping_add(bw).wrapping_add(cc);
-                        cc = naw >> 31;
-                        *aa = ctl.mux(naw & 0x7FFFFFFF, aw)
+                        cc = naw >> 62;
+                        *aa = ctl.mux(naw & 0x3FFFFFFFFFFFFFFF, aw)
                     }
                     ConstantBool(cc)
                 }
@@ -747,28 +761,29 @@ macro_rules! fp31 {
                 ///Sub a from b if `ctl` is true. Otherwise perform all the same access patterns but don't actually subtract.
                 #[inline]
                 fn sub_assign_limbs_if(
-                    a: &mut [u32; NUMLIMBS],
-                    b: [u32; NUMLIMBS],
-                    ctl: ConstantBool<u32>,
-                ) -> ConstantBool<u32> {
-                    let mut cc = 0u32;
+                    a: &mut [u64; NUMLIMBS],
+                    b: [u64; NUMLIMBS],
+                    ctl: ConstantBool<u64>,
+                ) -> ConstantBool<u64> {
+                    let mut cc = 0u64;
                     for (aa, bb) in a.iter_mut().zip(b.iter()) {
                         let aw = *aa;
                         let bw = *bb;
                         let naw = aw.wrapping_sub(bw).wrapping_sub(cc);
-                        cc = naw >> 31;
-                        *aa = ctl.mux(naw & 0x7FFFFFFF, aw);
+                        // Extract borrow from MSB (bit 63, not bit 62): u64 borrow is in the sign bit
+                        cc = naw >> 63;
+                        *aa = ctl.mux(naw & 0x3FFFFFFFFFFFFFFF, aw);
                     }
                     ConstantBool(cc)
                 }
 
                 #[inline]
-                fn mul_31_lo(x: u32, y: u32) -> u32 {
-                    x.wrapping_mul(y) & 0x7FFFFFFFu32
+                fn mul_62_lo(x: u64, y: u64) -> u64 {
+                    x.wrapping_mul(y) & 0x3FFFFFFFFFFFFFFF
                 }
 
                 #[inline]
-                fn cond_negate_mod_prime(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
+                fn cond_negate_mod_prime(a: &mut [u64; NUMLIMBS], ctl: ConstantBool<u64>) {
                     let mut p = PRIME;
                     $classname::sub_assign_limbs_if(&mut p, *a, ctl);
                     *a = $classname::normalize_little_limbs(p);
@@ -777,14 +792,15 @@ macro_rules! fp31 {
                 ///Negation (not mod prime) for a. Will only actually be performed if the ctl is true. Otherwise
                 ///perform the same bit access pattern, but don't negate.
                 #[inline]
-                fn cond_negate(a: &mut [u32; NUMLIMBS], ctl: ConstantBool<u32>) {
+                fn cond_negate(a: &mut [u64; NUMLIMBS], ctl: ConstantBool<u64>) {
                     let mut cc = ctl.0;
-                    let xm = ctl.0.wrapping_neg() >> 1;
+                    // Right-shift by 2 (not 1 like in ff31) to create 62-bit mask: 0x3FFFFFFFFFFFFFFF
+                    let xm = ctl.0.wrapping_neg() >> 2;
                     for ai in a.iter_mut() {
                         let mut aw = *ai;
                         aw = (aw ^ xm) + cc;
-                        *ai = aw & 0x7FFFFFFF;
-                        cc = aw >> 31;
+                        *ai = aw & 0x3FFFFFFFFFFFFFFF;
+                        cc = aw >> 62;
                     }
                 }
 
@@ -792,62 +808,60 @@ macro_rules! fp31 {
                 /// if neg = 1, then -m <= a < 0
                 /// if neg = 0, then 0 <= a < 2*m
                 ///
-                ///If neg = 0, then the top word of a[] may use 32 bits.
+                ///If neg = 0, then the top word of a[] may use 64 bits.
                 #[inline]
-                fn finish_div_mod(a: &mut [u32; NUMLIMBS], neg: u32) {
+                fn finish_div_mod(a: &mut [u64; NUMLIMBS], neg: u64) {
                     let mut cc = a.const_lt(PRIME);
-                    //TODO: It seems like this could all be made more clear if neg was ConstantBool(u32), but I couldn't get
-                    //that to look much better. We should examine it.
-
                     // At this point:
                     //   if neg = 1, then we must add m (regardless of cc)
                     //   if neg = 0 and cc = 0, then we must subtract m
                     //   if neg = 0 and cc = 1, then we must do nothing
-                    let xm = neg.wrapping_neg() >> 1; //If neg is 1, create a 31 bit mask, otherwise 0.
-                    let ym = (neg | 1u32.wrapping_sub(cc.0)).wrapping_neg();
+                    let xm = neg.wrapping_neg() >> 2; //If neg is 1, create a 62 bit mask, otherwise 0.
+                    let ym = (neg | 1u64.wrapping_sub(cc.0)).wrapping_neg();
                     cc = ConstantBool(neg);
 
                     for (a_item, prime_item) in a.iter_mut().zip(PRIME.iter()) {
                         let mw = (prime_item ^ xm) & ym;
                         let aw = a_item.wrapping_sub(mw).wrapping_sub(cc.0);
-                        *a_item = aw & 0x7FFFFFFFu32;
-                        cc = ConstantBool(aw >> 31);
+                        *a_item = aw & 0x3FFFFFFFFFFFFFFF;
+                        // Extract borrow from MSB (bit 63, not bit 62): u64 borrow is in the sign bit
+                        cc = ConstantBool(aw >> 63);
                     }
                 }
                 #[inline]
                 pub(crate) fn co_reduce(
-                    a: &mut [u32; NUMLIMBS],
-                    b: &mut [u32; NUMLIMBS],
-                    pa: i64,
-                    pb: i64,
-                    qa: i64,
-                    qb: i64,
-                ) -> u32 {
-                    let mut cca: i64 = 0;
-                    let mut ccb: i64 = 0;
+                    a: &mut [u64; NUMLIMBS],
+                    b: &mut [u64; NUMLIMBS],
+                    pa: i128,
+                    pb: i128,
+                    qa: i128,
+                    qb: i128,
+                ) -> u64 {
+                    let mut cca: i128 = 0;
+                    let mut ccb: i128 = 0;
                     for k in 0..NUMLIMBS {
-                        let za = (a[k] as u64)
-                            .wrapping_mul(pa as u64)
-                            .wrapping_add((b[k] as u64).wrapping_mul(pb as u64))
-                            .wrapping_add(cca as u64);
-                        let zb = (a[k] as u64)
-                            .wrapping_mul(qa as u64)
-                            .wrapping_add((b[k] as u64).wrapping_mul(qb as u64))
-                            .wrapping_add(ccb as u64);
+                        let za = (a[k] as u128)
+                            .wrapping_mul(pa as u128)
+                            .wrapping_add((b[k] as u128).wrapping_mul(pb as u128))
+                            .wrapping_add(cca as u128);
+                        let zb = (a[k] as u128)
+                            .wrapping_mul(qa as u128)
+                            .wrapping_add((b[k] as u128).wrapping_mul(qb as u128))
+                            .wrapping_add(ccb as u128);
                         if k > 0 {
-                            a[k - 1] = za as u32 & 0x7FFFFFFF;
-                            b[k - 1] = zb as u32 & 0x7FFFFFFF;
+                            a[k - 1] = za as u64 & 0x3FFFFFFFFFFFFFFF;
+                            b[k - 1] = zb as u64 & 0x3FFFFFFFFFFFFFFF;
                         }
 
-                        //The carries are actually the arithmetic shift by 31.
-                        cca = (za as i64) >> 31;
-                        ccb = (zb as i64) >> 31;
+                        //The carries are actually the arithmetic shift by 62.
+                        cca = (za as i128) >> 62;
+                        ccb = (zb as i128) >> 62;
                     }
-                    a[NUMLIMBS - 1] = cca as u32;
-                    b[NUMLIMBS - 1] = ccb as u32;
+                    a[NUMLIMBS - 1] = cca as u64;
+                    b[NUMLIMBS - 1] = ccb as u64;
                     //Capture if a or b are negative
-                    let nega = ((cca as u64) >> 63) as u32;
-                    let negb = ((ccb as u64) >> 63) as u32;
+                    let nega = ((cca as u128) >> 127) as u64;
+                    let negb = ((ccb as u128) >> 127) as u64;
                     $classname::cond_negate(a, ConstantBool(nega));
                     $classname::cond_negate(b, ConstantBool(negb));
 
@@ -856,67 +870,67 @@ macro_rules! fp31 {
 
                 #[inline]
                 fn co_reduce_mod(
-                    a: &mut [u32; NUMLIMBS],
-                    b: &mut [u32; NUMLIMBS],
-                    pa: i64,
-                    pb: i64,
-                    qa: i64,
-                    qb: i64,
+                    a: &mut [u64; NUMLIMBS],
+                    b: &mut [u64; NUMLIMBS],
+                    pa: i128,
+                    pb: i128,
+                    qa: i128,
+                    qb: i128,
                 ) {
-                    let mut cca = 0i64;
-                    let mut ccb = 0i64;
-                    let fa: u32 = a[0]
-                        .wrapping_mul(pa as u32)
-                        .wrapping_add(b[0].wrapping_mul(pb as u32))
+                    let mut cca = 0i128;
+                    let mut ccb = 0i128;
+                    let fa: u64 = a[0]
+                        .wrapping_mul(pa as u64)
+                        .wrapping_add(b[0].wrapping_mul(pb as u64))
                         .wrapping_mul(MONTM0INV)
-                        & 0x7FFFFFFFu32;
-                    let fb: u32 = a[0]
-                        .wrapping_mul(qa as u32)
-                        .wrapping_add(b[0].wrapping_mul(qb as u32))
+                        & 0x3FFFFFFFFFFFFFFF;
+                    let fb: u64 = a[0]
+                        .wrapping_mul(qa as u64)
+                        .wrapping_add(b[0].wrapping_mul(qb as u64))
                         .wrapping_mul(MONTM0INV)
-                        & 0x7FFFFFFFu32;
+                        & 0x3FFFFFFFFFFFFFFF;
                     for k in 0..NUMLIMBS {
-                        let wa = a[k] as u64;
-                        let wb = b[k] as u64;
+                        let wa = a[k] as u128;
+                        let wb = b[k] as u128;
 
                         let za = wa
-                            .wrapping_mul(pa as u64)
-                            .wrapping_add(wb.wrapping_mul(pb as u64))
-                            .wrapping_add((PRIME[k] as u64).wrapping_mul(fa as u64))
-                            .wrapping_add(cca as u64);
+                            .wrapping_mul(pa as u128)
+                            .wrapping_add(wb.wrapping_mul(pb as u128))
+                            .wrapping_add((PRIME[k] as u128).wrapping_mul(fa as u128))
+                            .wrapping_add(cca as u128);
                         let zb = wa
-                            .wrapping_mul(qa as u64)
-                            .wrapping_add(wb.wrapping_mul(qb as u64))
-                            .wrapping_add((PRIME[k] as u64).wrapping_mul(fb as u64))
-                            .wrapping_add(ccb as u64);
+                            .wrapping_mul(qa as u128)
+                            .wrapping_add(wb.wrapping_mul(qb as u128))
+                            .wrapping_add((PRIME[k] as u128).wrapping_mul(fb as u128))
+                            .wrapping_add(ccb as u128);
                         if k > 0 {
-                            a[k - 1] = za as u32 & 0x7FFFFFFF;
-                            b[k - 1] = zb as u32 & 0x7FFFFFFF;
+                            a[k - 1] = za as u64 & 0x3FFFFFFFFFFFFFFF;
+                            b[k - 1] = zb as u64 & 0x3FFFFFFFFFFFFFFF;
                         }
 
-                        //Arithmetic shifting by 31 places gets is the carry.
-                        cca = (za as i64) >> 31;
-                        ccb = (zb as i64) >> 31;
+                        //Arithmetic shifting by 62 places gets is the carry.
+                        cca = (za as i128) >> 62;
+                        ccb = (zb as i128) >> 62;
                     }
-                    a[NUMLIMBS - 1] = cca as u32;
-                    b[NUMLIMBS - 1] = ccb as u32;
+                    a[NUMLIMBS - 1] = cca as u64;
+                    b[NUMLIMBS - 1] = ccb as u64;
 
                     /*
                      * At this point:
                      *   -m <= a < 2*m
                      *   -m <= b < 2*m
                      * (this is a case of Montgomery reduction)
-                     * The top word of 'a' and 'b' may have a 32-th bit set.
+                     * The top word of 'a' and 'b' may have a 64-th bit set.
                      * We may have to add or subtract the modulus.
                      */
-                    $classname::finish_div_mod(a, ((cca as u64) >> 63) as u32);
-                    $classname::finish_div_mod(b, ((ccb as u64) >> 63) as u32);
+                    $classname::finish_div_mod(a, ((cca as u128) >> 127) as u64);
+                    $classname::finish_div_mod(b, ((ccb as u128) >> 127) as u64);
                 }
 
                 ///Divide x by y mod PRIME. Returns ConstBool that represents True if the values were invertible.
                 ///The result is stored in x.
-                ///This is ported from br_i31_moddiv in BearSSL.
-                fn div_mod(x: &mut [u32; NUMLIMBS], y: &[u32; NUMLIMBS]) -> ConstantBool<u32> {
+                ///This is ported from br_i31_moddiv in BearSSL then ported to 62 bit.
+                fn div_mod(x: &mut [u64; NUMLIMBS], y: &[u64; NUMLIMBS]) -> ConstantBool<u64> {
                     /*
                      * Algorithm is an extended binary GCD. We maintain four values
                      * a, b, u and v, with the following invariants:
@@ -932,54 +946,54 @@ macro_rules! fp31 {
                      *   v = 0
                      */
 
-                    let mut r: u32;
+                    let mut r: u64;
                     let mut a = {
-                        let mut value = [0u32; NUMLIMBS];
+                        let mut value = [0u64; NUMLIMBS];
                         value.copy_from_slice(y);
                         value
                     };
                     let mut b = {
-                        let mut value = [0u32; NUMLIMBS];
+                        let mut value = [0u64; NUMLIMBS];
                         value.copy_from_slice(&PRIME);
                         value
                     };
                     let u = x;
-                    let mut v = [0u32; NUMLIMBS];
+                    let mut v = [0u64; NUMLIMBS];
                     /* In the loop below, at each iteration, we use the two top words
                      * of a and b, and the low words of a and b, to compute reduction
                      * parameters pa, pb, qa and qb such that the new values for a
                      * and b are:
                      *
-                     *   a' = (a*pa + b*pb) / (2^31)
-                     *   b' = (a*qa + b*qb) / (2^31)
+                     *   a' = (a*pa + b*pb) / (2^62)
+                     *   b' = (a*qa + b*qb) / (2^62)
                      *
                      * the division being exact.
                      *
                      * Since the choices are based on the top words, they may be slightly
                      * off, requiring an optional correction: if a' < 0, then we replace
                      * pa with -pa, and pb with -pb. The total length of a and b is
-                     * thus reduced by at least 30 bits at each iteration.
+                     * thus reduced by at least 60 bits at each iteration.
                      */
                     //In bear_ssl, the choice is made off of the encoded bits, which are computed like this:
-                    // let encoded_bits = 32*(PRIMEBITS/31) + (PRIMEBITS % 31);
-                    // Then the num starts as (encoded_bits - (encoded_bits >> 5)) << 1) + 30
-                    // this reduces to (PRIMEBITS << 1) + 30 because (encoded_bits >> 5) is the number of extra bits in use because we're
-                    // using 31 bit limbs.
-                    let mut num = (PRIMEBITS << 1) + 30;
-                    while num >= 30 {
-                        let mut c0 = 0xFFFFFFFFu32;
-                        let mut c1 = 0xFFFFFFFFu32;
-                        let mut a0 = 0u32;
-                        let mut a1 = 0u32;
-                        let mut b0 = 0u32;
-                        let mut b1 = 0u32;
+                    // let encoded_bits = 64*(PRIMEBITS/62) + (PRIMEBITS % 62);
+                    // Then the num starts as ((encoded_bits - (encoded_bits >> 6)) << 1) + 60
+                    // Because of this we use a simpler formula (PRIMEBITS << 1) + 60 which provides a
+                    // safe upper bound and avoids the encoded_bits calculation.
+                    let mut num = (PRIMEBITS << 1) + 60;
+                    while num >= 60 {
+                        let mut c0 = 0xFFFFFFFFFFFFFFFFu64;
+                        let mut c1 = 0xFFFFFFFFFFFFFFFFu64;
+                        let mut a0 = 0u64;
+                        let mut a1 = 0u64;
+                        let mut b0 = 0u64;
+                        let mut b1 = 0u64;
                         for (aw, bw) in a.iter().zip(b.iter()).rev() {
                             a0 ^= (a0 ^ aw) & c0;
                             a1 ^= (a1 ^ aw) & c1;
                             b0 ^= (b0 ^ bw) & c0;
                             b1 ^= (b1 ^ bw) & c1;
                             c1 = c0;
-                            c0 &= (((aw | bw) + 0x7FFFFFFF) >> 31).wrapping_sub(1u32);
+                            c0 &= (((aw | bw) + 0x3FFFFFFFFFFFFFFF) >> 62).wrapping_sub(1u64);
                         }
                         /*
                          * If c1 = 0, then we grabbed two words for a and b.
@@ -991,10 +1005,10 @@ macro_rules! fp31 {
                         a0 &= !c1;
                         b1 |= b0 & c1;
                         b0 &= !c1;
-                        let mut a_hi = ((a0 as u64) << 31) + a1 as u64;
-                        let mut b_hi = ((b0 as u64) << 31) + b1 as u64;
-                        let mut a_lo = a[0] as u32;
-                        let mut b_lo = b[0] as u32;
+                        let mut a_hi = ((a0 as u128) << 62) + a1 as u128;
+                        let mut b_hi = ((b0 as u128) << 62) + b1 as u128;
+                        let mut a_lo = a[0] as u64;
+                        let mut b_lo = b[0] as u64;
 
                         /*
                          * Compute reduction factors:
@@ -1002,14 +1016,14 @@ macro_rules! fp31 {
                          *   a' = a*pa + b*pb
                          *   b' = a*qa + b*qb
                          *
-                         * such that a' and b' are both multiple of 2^31, but are
+                         * such that a' and b' are both multiple of 2^62, but are
                          * only marginally larger than a and b.
                          */
-                        let mut pa = 1i64;
-                        let mut pb = 0i64;
-                        let mut qa = 0i64;
-                        let mut qb = 1i64;
-                        for i in 0..31 {
+                        let mut pa = 1i128;
+                        let mut pb = 0i128;
+                        let mut qa = 0i128;
+                        let mut qb = 1i128;
+                        for i in 0..62 {
                             /*
                              * At each iteration:
                              *
@@ -1026,7 +1040,7 @@ macro_rules! fp31 {
                             /*
                              * r = GT(a_hi, b_hi)
                              */
-                            r = a_hi.const_gt(b_hi).0 as u32;
+                            r = a_hi.const_gt(b_hi).0 as u64;
                             let r_not = ConstantUnsignedPrimitives::not(r);
 
                             /*
@@ -1049,37 +1063,37 @@ macro_rules! fp31 {
                              * Conditional subtractions.
                              */
                             a_lo = a_lo.wrapping_sub(b_lo & c_ab.wrapping_neg());
-                            a_hi = a_hi.wrapping_sub(b_hi & (c_ab as u64).wrapping_neg());
-                            pa -= qa & -(c_ab as i64);
-                            pb -= qb & -(c_ab as i64);
+                            a_hi = a_hi.wrapping_sub(b_hi & (c_ab as u128).wrapping_neg());
+                            pa -= qa & -(c_ab as i128);
+                            pb -= qb & -(c_ab as i128);
                             b_lo = b_lo.wrapping_sub(a_lo & c_ba.wrapping_neg());
-                            b_hi = b_hi.wrapping_sub(a_hi & (c_ba as u64).wrapping_neg());
-                            qa -= pa & -(c_ba as i64);
-                            qb -= pb & -(c_ba as i64);
+                            b_hi = b_hi.wrapping_sub(a_hi & (c_ba as u128).wrapping_neg());
+                            qa -= pa & -(c_ba as i128);
+                            qb -= pb & -(c_ba as i128);
 
                             /*
                              * Shifting.
                              */
                             a_lo = a_lo.wrapping_add(a_lo & c_a.wrapping_sub(1));
-                            pa += pa & (c_a as i64) - 1;
-                            pb += pb & (c_a as i64) - 1;
-                            a_hi ^= (a_hi ^ (a_hi >> 1)) & (c_a as u64).wrapping_neg();
+                            pa += pa & (c_a as i128) - 1;
+                            pb += pb & (c_a as i128) - 1;
+                            a_hi ^= (a_hi ^ (a_hi >> 1)) & (c_a as u128).wrapping_neg();
                             b_lo = b_lo.wrapping_add(b_lo & c_a.wrapping_neg());
-                            qa += qa & -(c_a as i64);
-                            qb += qb & -(c_a as i64);
-                            b_hi ^= (b_hi ^ (b_hi >> 1)) & (c_a as u64).wrapping_sub(1);
+                            qa += qa & -(c_a as i128);
+                            qb += qb & -(c_a as i128);
+                            b_hi ^= (b_hi ^ (b_hi >> 1)) & (c_a as u128).wrapping_sub(1);
                         }
 
                         /*
                          * Replace a and b with new values a' and b'.
                          */
                         r = $classname::co_reduce(&mut a, &mut b, pa, pb, qa, qb);
-                        pa -= pa * ((r & 1) << 1) as i64;
-                        pb -= pb * ((r & 1) << 1) as i64;
-                        qa -= qa * (r & 2) as i64;
-                        qb -= qb * (r & 2) as i64;
+                        pa -= pa * ((r & 1) << 1) as i128;
+                        pb -= pb * ((r & 1) << 1) as i128;
+                        qa -= qa * (r & 2) as i128;
+                        qb -= qb * (r & 2) as i128;
                         $classname::co_reduce_mod(u, &mut v, pa, pb, qa, qb);
-                        num -= 30;
+                        num -= 60;
                     }
 
                     /*
@@ -1103,13 +1117,18 @@ macro_rules! fp31 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::TryRngCore;
                 use rand::rngs::OsRng;
+                use rand::TryRngCore;
                 use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]
                 fn default_is_zero() {
                     assert_eq!($classname::zero(), $classname::default())
+                }
+
+                #[test]
+                fn zero_times_zero_is_zero() {
+                    assert_eq!($classname::zero() * $classname::zero(), $classname::zero())
                 }
 
                 #[test]
@@ -1145,11 +1164,11 @@ macro_rules! fp31 {
                         } else if seed == 1 {
                             $classname::one()
                         } else {
-                            let mut limbs = [0u32; NUMLIMBS];
+                            let mut limbs = [0u64; NUMLIMBS];
                             for limb in limbs.iter_mut() {
-                                *limb = OsRng.try_next_u32().unwrap() & 0x7FFFFFFFu32;
+                                *limb = OsRng.try_next_u64().unwrap() & 0x3FFFFFFFFFFFFFFF;
                             }
-                            limbs[NUMLIMBS - 1] &= (1u32 << (PRIMEBITS % 31)) - 1;
+                            limbs[NUMLIMBS - 1] &= (1u64 << (PRIMEBITS % 62)) - 1;
                             $classname {
                                 limbs: limbs
                             }.normalize_little()
@@ -1161,15 +1180,8 @@ macro_rules! fp31 {
                     #[test]
                     fn from_u32(a in any::<u32>()) {
                         let result = $classname::from(a);
-                        if a > 0x7FFFFFFFu32 {
-                            prop_assert_eq!(result.limbs[0], a & 0x7FFFFFFFu32);
-                            prop_assert_eq!(result.limbs[1], 1);
-                            prop_assert!(result.limbs[2..].iter().all(|limb| limb == &0u32));
-                        }else{
-                            prop_assert_eq!(result.limbs[0], a);
-                            prop_assert!(result.limbs[1..].iter().all(|limb| limb == &0u32));
-                        }
-
+                        prop_assert_eq!(result.limbs[0], a as u64);
+                        prop_assert!(result.limbs[1..].iter().all(|limb| limb == &0u64));
                     }
 
                     #[test]
