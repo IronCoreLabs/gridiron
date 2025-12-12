@@ -1,6 +1,6 @@
 [package]
 name = "gridiron"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2024"
 authors = ["IronCore Labs <code at ironcorelabs.com>"]
 repository = "https://github.com/IronCoreLabs/gridiron"
@@ -28,6 +28,9 @@ rand = "0.9"
 criterion = { version = "0.8", default-features = false }
 
 [features]
+default = ["limb62"]
+limb31 = []
+limb62 = []
 unstable = []
 
 [profile.bench]

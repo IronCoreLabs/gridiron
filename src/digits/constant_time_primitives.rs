@@ -13,10 +13,10 @@ use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 ///
 ///Values which support swapping the values in place.
 ///
-pub trait ConstantSwap {
+pub trait ConstantSwap<T: NumOps + Copy> {
     ///Swapping the values if the swap was true. Note that this should be done in a constant
     ///time way to support constant time algorithms.
-    fn swap_if(&mut self, other: &mut Self, swap: ConstantBool<u32>);
+    fn swap_if(&mut self, other: &mut Self, swap: ConstantBool<T>);
 }
 
 pub trait ConstantUnsignedPrimitives
@@ -101,7 +101,7 @@ impl ConstantUnsignedPrimitives for $T {
     }
 }
 )+ }}
-constant_unsigned! { u64, u32 }
+constant_unsigned! { u128, u64, u32 }
 
 pub trait ConstantUnsignedArray31 {
     fn const_eq(self, y: Self) -> ConstantBool<u32>;
@@ -192,6 +192,96 @@ impl ConstantUnsignedArray31 for [u32; $N] {
 }
 )+ }}
 constant_unsigned_array31! { 9, 16 }
+
+pub trait ConstantUnsignedArray62 {
+    fn const_eq(self, y: Self) -> ConstantBool<u64>;
+    fn const_eq0(self) -> ConstantBool<u64>;
+    fn const_neq0(self) -> ConstantBool<u64>;
+    fn const_neq(self, y: Self) -> ConstantBool<u64>;
+    fn const_gt(self, y: Self) -> ConstantBool<u64>;
+    fn const_ge(self, y: Self) -> ConstantBool<u64>;
+    fn const_lt(self, y: Self) -> ConstantBool<u64>;
+    fn const_le(self, y: Self) -> ConstantBool<u64>;
+    fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u64>);
+    fn const_ordering(&self, y: &Self) -> Ordering;
+}
+macro_rules! constant_unsigned_array62 { ($($N:expr),*) => { $(
+/// Must have maximum of 62-bits used per limb
+impl ConstantUnsignedArray62 for [u64; $N] {
+
+    #[inline]
+    fn const_eq(self, y: Self) -> ConstantBool<u64> {
+        self.const_neq(y).not()
+    }
+
+    #[inline]
+    fn const_eq0(self) -> ConstantBool<u64> {
+        let mut accum = 0u64;
+        self.iter().for_each(|l| { accum |= *l });
+        ConstantBool::is_zero(accum)
+    }
+
+    #[inline]
+    fn const_neq0(self) -> ConstantBool<u64> {
+        self.const_eq0().not()
+    }
+
+    #[inline]
+    fn const_neq(self, y: Self) -> ConstantBool<u64> {
+        let q = self.iter().zip(y.iter()).fold(0u64, |acc, (xlimb, ylimb)| {
+            acc | ((xlimb & 0x3FFFFFFFFFFFFFFF) ^ (ylimb & 0x3FFFFFFFFFFFFFFF))
+        });
+        ConstantBool((q | q.wrapping_neg()) >> 62)
+    }
+
+    #[inline]
+    fn const_lt(self, y: Self) -> ConstantBool<u64> {
+        let mut borrow = 0u64;
+        self.iter().zip(y.iter()).for_each ( |(a, b)| {
+            let diff = (*a).wrapping_sub(*b).wrapping_sub(borrow);
+            borrow = diff >> 63;
+        });
+        ConstantBool(borrow)
+    }
+
+    #[inline]
+    fn const_le(self, y: Self) -> ConstantBool<u64> {
+        y.const_lt(self).not()
+    }
+
+    #[inline]
+    fn const_gt(self, y: Self) -> ConstantBool<u64> {
+        y.const_lt(self)
+    }
+
+    #[inline]
+    fn const_ge(self, y: Self) -> ConstantBool<u64> {
+        self.const_lt(y).not()
+    }
+
+    fn const_ordering(&self, y:&Self) -> Ordering{
+        let mut res = 0u128;
+        self.iter().zip(y.iter()).rev().for_each(|(l, r)| {
+            let limbcmp = (l.const_gt(*r).0 as u128) | ((r.const_gt(*l).0 as u128).wrapping_neg());
+            res = res.const_abs().mux(res, limbcmp);
+        });
+        match res as i128 {
+            -1 => Ordering::Less,
+            0 => Ordering::Equal,
+            1 => Ordering::Greater,
+            _ => panic!("The operation above can only produce 1,0,-1.")
+        }
+    }
+
+    #[inline]
+    fn const_copy_if(&mut self, src: &Self, ctl: ConstantBool<u64>) {
+        for (s, d) in src.iter().zip(self.iter_mut()) {
+            *d = ctl.mux(*s, *d);
+        }
+    }
+}
+)+ }}
+constant_unsigned_array62! { 5, 8 }
 
 #[cfg(test)]
 mod tests {

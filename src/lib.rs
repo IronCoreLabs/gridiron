@@ -1,16 +1,36 @@
+// Platform guards to prevent incompatible feature/platform combinations
+#[cfg(all(feature = "limb62", target_pointer_width = "32"))]
+compile_error!("limb62 feature requires a 64-bit platform (target_pointer_width = 64)");
+
+#[cfg(all(feature = "limb62", target_family = "wasm"))]
+compile_error!("limb62 feature is not compatible with WASM targets. Use limb31 (default) instead.");
+
+#[cfg(all(feature = "limb31", feature = "limb62"))]
+compile_error!("Cannot enable both limb31 and limb62 features simultaneously. Choose one.");
+
+#[cfg(feature = "limb31")]
 use crate::digits::util::unsafe_convert_bytes_to_limbs_mut;
+
+#[cfg(feature = "limb62")]
+use crate::digits::util::unsafe_convert_bytes_to_limbs_mut_62;
 
 #[macro_use]
 pub mod digits {
+    #[cfg(feature = "limb31")]
     #[macro_use]
     pub mod ff31;
+
+    #[cfg(feature = "limb62")]
+    #[macro_use]
+    pub mod ff62;
+
     pub mod constant_bool;
     pub mod constant_time_primitives;
     pub mod util;
 }
 
 // p = 3121577065842246806003085452055281276803074876175537384188619957989004527066410274868798956582915008874704066849018213144375771284425395508176023
-//   =
+#[cfg(feature = "limb31")]
 fp31!(
     fp_480, // Name of mod
     Fp480,  // Name of class
@@ -49,7 +69,67 @@ fp31!(
     1345299673
 );
 
+#[cfg(feature = "limb62")]
+fp62!(
+    fp_480, // Name of mod
+    Fp480,  // Name of class
+    480,    // Number of bits for prime
+    8,      // Number of limbs (ceil(bits/62))
+    [
+        // prime number in limbs, least sig first
+        // get this from python with to_62bit_limbs(p, 8)
+        2978339952865666199,
+        2988990868159852365,
+        3864149190135159360,
+        1213499561788749656,
+        2705995798735790620,
+        477791701396546756,
+        709858406450761912,
+        70364878668681
+    ],
+    //2^(62*(2*8-1)) mod p = 2^(62*15) mod p
+    [
+        262005553337465434,
+        1100617720378805827,
+        282409148143862143,
+        699648872444741086,
+        248696978812552659,
+        3537874805830564178,
+        4118191922018335462,
+        26500334677985
+    ],
+    // Montgomery One is R mod p
+    // montgomery R = 2^(W*N) where W = word size and N = limbs
+    //            R = 2^(8*62) = 2^496
+    // 1873675273853457188138609473867413143403568023004720367747079366994575886696675578165954881343055291187920754699766806834859907881069622684602939
+    [
+        1411931113150796347,
+        4337868448446581954,
+        2875615690224798545,
+        1589293725868032884,
+        3350557317075162702,
+        3969433312113376123,
+        3890139537431606097,
+        42235360693756
+    ],
+    // montgomery R^2 mod p
+    // 663120576755947177477234957153113196976782665843931955672476799891417469774359966360953042976451635788456056983144767882360029577327763299695501
+    [
+        4152702584043797389,
+        1132620728082408216,
+        567287986603962430,
+        69488459027654414,
+        3342951146830232136,
+        4041393270465723463,
+        1264175541428975417,
+        14947700454593
+    ],
+    // -p[0]^-1 mod 2^62
+    4431181839393072345
+);
+
 // p = 65000549695646603732796438742359905742825358107623003571877145026864184071783
+#[cfg(feature = "limb31")]
 fp31!(
     fp_256, // Name of mod
     Fp256,  // Name of class
@@ -88,6 +168,55 @@ fp31!(
     2132269737
 );
 
+#[cfg(feature = "limb62")]
+fp62!(
+    fp_256, // Name of mod
+    Fp256,  // Name of class
+    256,    // Number of bits for prime
+    5,      // Number of limbs (ceil(bits/62))
+    [
+        // prime number in limbs, least sig first
+        // get this from python with to_62bit_limbs(p, 5)
+        1755467536201717351,
+        4138283884759930488,
+        2809906994319573534,
+        3260738976388087402,
+        143
+    ],
+    //2^(62*(2*5-1)) mod p = 2^(62*9) mod p
+    //26753832205083639112203412356185740914827891884263043594389452794758614404120
+    [
+        1574970599394167832,
+        1721512461814946948,
+        2771376936763900735,
+        686932450151438738,
+        59
+    ],
+    // Montgomery One is R mod p
+    // montgomery R = 2^(W*N) where W = word size and N = limbs
+    //            R = 2^(5*62) = 2^310
+    // 34475546371888944175481977063149909728101006622996825201390467458658933952845
+    [
+        2879065352818938189,
+        2493197544226546751,
+        1840221370419737272,
+        1017232563857971296,
+        76
+    ],
+    // montgomery R^2 mod p
+    // 45066656446401961321162181312428777956457580069994368603299244339168090274348
+    [
+        4087905639192869420,
+        3986925656386955422,
+        4465746194492053012,
+        2933169593596763261,
+        99
+    ],
+    // -p[0]^-1 mod 2^62
+    2560288693711002281
+);
+
+#[cfg(feature = "limb31")]
 impl From<[u8; 64]> for fp_256::Fp256 {
     fn from(src: [u8; 64]) -> Self {
         // In order to reduce a arbitrary integer we can break it up into pieces which are at most NUMLIMBS - 1 long and multiply it by REDUCTION_CONST using the following
@@ -116,12 +245,50 @@ impl From<[u8; 64]> for fp_256::Fp256 {
     }
 }
 
+#[cfg(feature = "limb62")]
+impl From<[u8; 64]> for fp_256::Fp256 {
+    fn from(src: [u8; 64]) -> Self {
+        // In order to reduce a arbitrary integer we can break it up into pieces which are at most NUMLIMBS - 1 long and multiply it by REDUCTION_CONST using the following
+        // formula. x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2). In order to do this using only the one precomputed REDUCTION_CONST we can use Horner's method to evaluate
+        // the polynomial to make it (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0. Note that this implementation is specific for 64 bytes, but the idea has no limit on the length
+        // of the incoming number.
+        let limbs = from_sixty_four_bytes(src);
+        // Create fixed size views which are at most NUMLIMBS -1 in length.
+        let (x0_view, x1_and_2_view) = limbs.split_at(fp_256::NUMLIMBS - 1);
+        let (x1_view, x2_view) = x1_and_2_view.split_at(fp_256::NUMLIMBS - 1);
+        //Create 0 padded values that match the above views.
+        let (mut x0, mut x1, mut x2) = (
+            [0u64; fp_256::NUMLIMBS],
+            [0u64; fp_256::NUMLIMBS],
+            [0u64; fp_256::NUMLIMBS],
+        );
+        //This stinks, but I can't find a better way. We copy the views into the front of each of the limbs, leaving them padded to the right with 0s.
+        x0[..fp_256::NUMLIMBS - 1].copy_from_slice(x0_view);
+        x1[..fp_256::NUMLIMBS - 1].copy_from_slice(x1_view);
+        x2[..1].copy_from_slice(x2_view);
+
+        //We take x0 + (x1 * REDUCTION_CONST) + (x2 * REDUCTION_CONST^2) and use horner's method to reduce it to (x2 * REDUCTION_CONST + x1) * REDUCTION_CONST + x0
+        (fp_256::Fp256::new(x2) * fp_256::REDUCTION_CONST + fp_256::Fp256::new(x1))
+            * fp_256::REDUCTION_CONST
+            + fp_256::Fp256::new(x0)
+    }
+}
+
+#[cfg(feature = "limb31")]
 impl From<[u8; 64]> for fp_256::Monty {
     fn from(src: [u8; 64]) -> Self {
         fp_256::Fp256::from(src).to_monty()
     }
 }
 
+#[cfg(feature = "limb62")]
+impl From<[u8; 64]> for fp_256::Monty {
+    fn from(src: [u8; 64]) -> Self {
+        fp_256::Fp256::from(src).to_monty()
+    }
+}
+
+#[cfg(feature = "limb31")]
 impl From<[u8; 64]> for fp_480::Fp480 {
     fn from(src: [u8; 64]) -> Self {
         //See the 256 version for a play by play of this function.
@@ -136,19 +303,50 @@ impl From<[u8; 64]> for fp_480::Fp480 {
     }
 }
 
+#[cfg(feature = "limb62")]
+impl From<[u8; 64]> for fp_480::Fp480 {
+    fn from(src: [u8; 64]) -> Self {
+        //See the 256 version for a play by play of this function.
+        let limbs = from_sixty_four_bytes(src);
+        let (x0_view, x1_view) = limbs.split_at(fp_480::NUMLIMBS - 1);
+        // let (x0_view, x1_view) = arrayref::array_refs![&limbs, fp_480::NUMLIMBS - 1, 2];
+        let (mut x0, mut x1) = ([0u64; 8], [0u64; 8]);
+        x0[..fp_480::NUMLIMBS - 1].copy_from_slice(x0_view);
+        x1[..2].copy_from_slice(x1_view);
+
+        fp_480::Fp480::new(x1) * fp_480::REDUCTION_CONST + fp_480::Fp480::new(x0)
+    }
+}
+
+#[cfg(feature = "limb31")]
 impl From<[u8; 64]> for fp_480::Monty {
     fn from(src: [u8; 64]) -> Self {
         fp_480::Fp480::from(src).to_monty()
     }
 }
 
+#[cfg(feature = "limb62")]
+impl From<[u8; 64]> for fp_480::Monty {
+    fn from(src: [u8; 64]) -> Self {
+        fp_480::Fp480::from(src).to_monty()
+    }
+}
+
+#[cfg(feature = "limb31")]
 pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u32; 17] {
     let mut limbs = [0u32; 17];
     unsafe_convert_bytes_to_limbs_mut(&src, &mut limbs, 64);
     limbs
 }
 
-#[cfg(test)]
+#[cfg(feature = "limb62")]
+pub fn from_sixty_four_bytes(src: [u8; 64]) -> [u64; 9] {
+    let mut limbs = [0u64; 9];
+    unsafe_convert_bytes_to_limbs_mut_62(&src, &mut limbs, 64);
+    limbs
+}
+
+#[cfg(all(test, feature = "limb31"))]
 mod lib {
     use super::*;
     use num_traits::{One, Zero};
