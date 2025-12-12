@@ -43,7 +43,7 @@ pub fn u32_to_bytes_big_endian(x: u32, buf: &mut [u8]) {
 }
 
 ///This function assumes that the buf pointer has at least 8 spaces starting at the beginning of the
-///slice. You need to assure this before calling.
+///slice. You need to ensure this before calling.
 #[inline]
 pub fn u64_to_bytes_big_endian(x: u64, buf: &mut [u8]) {
     debug_assert!(buf.len() >= 8);
