@@ -1162,7 +1162,10 @@ macro_rules! fp62 {
                     // -1 should be p - 1, so -1 + 1 = 0
                     assert_eq!(-$classname::one() + $classname::one(), $classname::zero());
                     // -2 should be p - 2, so -2 + 2 = 0
-                    assert_eq!(-$classname::from(2u8) + $classname::from(2u8), $classname::zero());
+                    assert_eq!(
+                        -$classname::from(2u8) + $classname::from(2u8),
+                        $classname::zero()
+                    );
                     // Double negation should be identity
                     assert_eq!(-(-$classname::one()), $classname::one());
                     assert_eq!(-(-$classname::from(2u8)), $classname::from(2u8));
