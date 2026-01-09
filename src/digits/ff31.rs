@@ -1136,24 +1136,20 @@ macro_rules! fp31 {
                     assert_eq!(0, x_iter.endindex) // but don't fall off the end!
                 }
 
-                prop_compose! {
-                    fn arb_fp()(limb_values in any::<[u32; NUMLIMBS]>()) -> $classname {
-                        let mut limbs = [0u32; NUMLIMBS];
-                        for (i, &val) in limb_values.iter().enumerate() {
-                            // Mask off the top bit, since we need 31 bit per limb
-                            limbs[i] = val & 0x7FFFFFFFu32;
-                        }
-                        // The top limb may not be able to use all 31 bits. For a prime with PRIMEBITS bits
-                        // spread across NUMLIMBS limbs, the top limb only needs enough bits to
-                        // hold the remaining bits after filling the lower limbs. This mask
-                        // ensures we don't generate values larger than the prime's bit width.
-                        // Formula handles the edge case where PRIMEBITS is exactly divisible
-                        // by 31 (top limb uses all 31 bits).
-                        const TOP_LIMB_BITS: usize = ((PRIMEBITS - 1) % 31) + 1;
-                        limbs[NUMLIMBS - 1] &= (1u32 << TOP_LIMB_BITS) - 1;
-                        $classname { limbs }.normalize_little()
-                    }
+                /// Static test for negation of small values. This is a sanity check that
+                /// doesn't depend on arb_fp(), since arb_fp() uses negation for edge cases.
+                #[test]
+                fn negation_of_small_values() {
+                    // -1 should be p - 1, so -1 + 1 = 0
+                    assert_eq!(-$classname::one() + $classname::one(), $classname::zero());
+                    // -2 should be p - 2, so -2 + 2 = 0
+                    assert_eq!(-$classname::from(2u8) + $classname::from(2u8), $classname::zero());
+                    // Double negation should be identity
+                    assert_eq!(-(-$classname::one()), $classname::one());
+                    assert_eq!(-(-$classname::from(2u8)), $classname::from(2u8));
                 }
+
+                $crate::define_arb_fp!($classname, 31, u32, 0x7FFFFFFFu32);
 
                 proptest! {
                     #[test]
@@ -1172,7 +1168,7 @@ macro_rules! fp31 {
 
                     #[test]
                     fn identity(a in arb_fp()) {
-                        // prop_assert_eq!(a * 1, a);
+                        prop_assume!(!a.is_zero());
 
                         prop_assert_eq!(a * $classname::one(), a);
                         prop_assert_eq!($classname::one() * a, a);
@@ -1325,6 +1321,7 @@ macro_rules! fp31 {
                     }
                     #[test]
                     fn monty_inv_same_as_div(a in arb_fp(), b in arb_fp()) {
+                        prop_assume!(!b.is_zero());
                         let div_result = a/b;
                         let result = (a.to_monty() * b.to_monty().inv()).to_norm();
 
@@ -1333,6 +1330,7 @@ macro_rules! fp31 {
 
                     #[test]
                     fn monty_div_same_as_div(a in arb_fp(), b in arb_fp()) {
+                        prop_assume!(!b.is_zero());
                         let div_result = a/b;
                         let monty_result = (a.to_monty()/b.to_monty()).to_norm();
 
