@@ -12,8 +12,19 @@ license = "Apache-2.0"
 keywords = ["finite", "field", "crypto", "math"]
 rust-version = "1.88.0"
 
+[features]
+default = ["limb62"]
+limb31 = []
+limb62 = []
+unstable = []
+
 [dependencies]
 num-traits = "0.2.11"
+
+[dev-dependencies]
+criterion = { version = "0.8", default-features = false }
+proptest = "1"
+rand = "0.9"
 
 [profile.test]
 opt-level = 2
@@ -21,17 +32,6 @@ debug = 2
 debug-assertions = true
 incremental = true
 overflow-checks = true
-
-[dev-dependencies]
-proptest = "1"
-rand = "0.9"
-criterion = { version = "0.8", default-features = false }
-
-[features]
-default = ["limb62"]
-limb31 = []
-limb62 = []
-unstable = []
 
 [profile.bench]
 opt-level = 3
