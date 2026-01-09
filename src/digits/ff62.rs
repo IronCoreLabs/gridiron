@@ -1117,8 +1117,6 @@ macro_rules! fp62 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::TryRngCore;
-                use rand::rngs::OsRng;
                 use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]
@@ -1158,21 +1156,21 @@ macro_rules! fp62 {
                 }
 
                 prop_compose! {
-                    fn arb_fp()(seed in any::<u32>()) -> $classname {
-                        if seed == 0 {
-                            $classname::zero()
-                        } else if seed == 1 {
-                            $classname::one()
-                        } else {
-                            let mut limbs = [0u64; NUMLIMBS];
-                            for limb in limbs.iter_mut() {
-                                *limb = OsRng.try_next_u64().unwrap() & 0x3FFFFFFFFFFFFFFF;
-                            }
-                            limbs[NUMLIMBS - 1] &= (1u64 << (PRIMEBITS % 62)) - 1;
-                            $classname {
-                                limbs: limbs
-                            }.normalize_little()
+                    fn arb_fp()(limb_values in any::<[u64; NUMLIMBS]>()) -> $classname {
+                        let mut limbs = [0u64; NUMLIMBS];
+                        for (i, &val) in limb_values.iter().enumerate() {
+                            // Mask off the top 2 bits since we need at most 62 bits in each limb
+                            limbs[i] = val & 0x3FFFFFFFFFFFFFFF;
                         }
+                        // The top limb may not use all 62 bits. For a prime with PRIMEBITS bits
+                        // spread across NUMLIMBS limbs, the top limb only needs enough bits to
+                        // hold the remaining bits after filling the lower limbs. This mask
+                        // ensures we don't generate values larger than the prime's bit width.
+                        // Formula handles the edge case where PRIMEBITS is exactly divisible
+                        // by 62 (top limb uses all 62 bits).
+                        const TOP_LIMB_BITS: usize = ((PRIMEBITS - 1) % 62) + 1;
+                        limbs[NUMLIMBS - 1] &= (1u64 << TOP_LIMB_BITS) - 1;
+                        $classname { limbs }.normalize_little()
                     }
                 }
 
