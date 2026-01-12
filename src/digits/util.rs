@@ -175,3 +175,56 @@ pub fn split_u128_to_62b_array(i: u128) -> [u64; 3] {
 pub fn split_u128_to_62b(i: u128) -> (u64, u64) {
     ((i >> 62) as u64, (i & 0x3FFFFFFFFFFFFFFF) as u64)
 }
+
+/// Shared proptest strategy for generating arbitrary field elements with edge case coverage.
+///
+/// This macro generates an `arb_fp` function that produces field elements with:
+/// - ~25% edge cases: 0, 1, -1 (p-1), 2, -2 (p-2)
+/// - ~75% uniformly distributed random values
+///
+/// The random generation properly normalizes values that may exceed 2p by looping
+/// until the value is fully reduced, satisfying `normalize_little`'s precondition.
+///
+/// # Parameters
+/// - `$classname`: The field element type (e.g., `Fp256`)
+/// - `$limbsizebits`: Bits per limb (31 or 62)
+/// - `$limbtype`: Limb type (`u32` or `u64`)
+/// - `$limb_mask`: Mask for valid limb bits (`0x7FFFFFFFu32` or `0x3FFFFFFFFFFFFFFFu64`)
+#[cfg(test)]
+#[macro_export]
+macro_rules! define_arb_fp {
+    ($classname:ident, $limbsizebits:expr, $limbtype:ty, $limb_mask:expr) => {
+        prop_compose! {
+            fn arb_fp()(
+                choice in 0u8..20,
+                limb_values in any::<[$limbtype; NUMLIMBS]>()
+            ) -> $classname {
+                match choice {
+                    0 => $classname::zero(),
+                    1 => $classname::one(),
+                    2 => -$classname::one(),           // p - 1
+                    3 => $classname::from(2u8),
+                    4 => -$classname::from(2u8),       // p - 2
+                    _ => {
+                        let mut limbs = [0 as $limbtype; NUMLIMBS];
+                        for (i, &val) in limb_values.iter().enumerate() {
+                            limbs[i] = val & $limb_mask;
+                        }
+                        // This ensures that the top limb isn't using more bits than it should be
+                        // for the given PRIMEBITS. The `+1` and subsequent `-1` are to guard against
+                        // PRIMEBITS being divisible by $limbsizebits.
+                        const TOP_LIMB_BITS: usize = ((PRIMEBITS - 1) % $limbsizebits) + 1;
+                        limbs[NUMLIMBS - 1] &= ((1 as $limbtype) << TOP_LIMB_BITS) - 1;
+
+                        // Fully normalize - may need multiple subtractions if value >= 2p
+                        let mut result = $classname { limbs };
+                        while result.limbs.const_ge(PRIME).0 == 1 {
+                            result.normalize_assign_little();
+                        }
+                        result
+                    }
+                }
+            }
+        }
+    };
+}

@@ -1103,8 +1103,6 @@ macro_rules! fp31 {
                 use super::*;
                 // use limb_math;
                 use proptest::prelude::*;
-                use rand::TryRngCore;
-                use rand::rngs::OsRng;
                 use $crate::digits::constant_time_primitives::ConstantSwap;
 
                 #[test]
@@ -1138,24 +1136,23 @@ macro_rules! fp31 {
                     assert_eq!(0, x_iter.endindex) // but don't fall off the end!
                 }
 
-                prop_compose! {
-                    fn arb_fp()(seed in any::<u32>()) -> $classname {
-                        if seed == 0 {
-                            $classname::zero()
-                        } else if seed == 1 {
-                            $classname::one()
-                        } else {
-                            let mut limbs = [0u32; NUMLIMBS];
-                            for limb in limbs.iter_mut() {
-                                *limb = OsRng.try_next_u32().unwrap() & 0x7FFFFFFFu32;
-                            }
-                            limbs[NUMLIMBS - 1] &= (1u32 << (PRIMEBITS % 31)) - 1;
-                            $classname {
-                                limbs: limbs
-                            }.normalize_little()
-                        }
-                    }
+                /// Static test for negation of small values. This is a sanity check that
+                /// doesn't depend on arb_fp(), since arb_fp() uses negation for edge cases.
+                #[test]
+                fn negation_of_small_values() {
+                    // -1 should be p - 1, so -1 + 1 = 0
+                    assert_eq!(-$classname::one() + $classname::one(), $classname::zero());
+                    // -2 should be p - 2, so -2 + 2 = 0
+                    assert_eq!(
+                        -$classname::from(2u8) + $classname::from(2u8),
+                        $classname::zero()
+                    );
+                    // Double negation should be identity
+                    assert_eq!(-(-$classname::one()), $classname::one());
+                    assert_eq!(-(-$classname::from(2u8)), $classname::from(2u8));
                 }
+
+                $crate::define_arb_fp!($classname, 31, u32, 0x7FFFFFFFu32);
 
                 proptest! {
                     #[test]
@@ -1174,8 +1171,6 @@ macro_rules! fp31 {
 
                     #[test]
                     fn identity(a in arb_fp()) {
-                        // prop_assert_eq!(a * 1, a);
-
                         prop_assert_eq!(a * $classname::one(), a);
                         prop_assert_eq!($classname::one() * a, a);
 
@@ -1185,7 +1180,9 @@ macro_rules! fp31 {
                         prop_assert_eq!(a - $classname::zero(), a);
                         prop_assert_eq!($classname::zero() - a, -a);
 
-                        prop_assert_eq!(a / a, $classname::one());
+                        if !a.is_zero() {
+                            prop_assert_eq!(a / a, $classname::one());
+                        }
                         prop_assert_eq!(a.pow(0), $classname::one());
                         prop_assert_eq!(a.pow(1), a);
                     }
@@ -1225,17 +1222,21 @@ macro_rules! fp31 {
 
                     #[test]
                     fn mul_equals_div(a in arb_fp(), b in arb_fp()) {
-                        prop_assume!(!a.is_zero() && !b.is_zero());
                         let c = a * b;
-                        prop_assert_eq!(c / a, b);
-                        prop_assert_eq!(c / b, a);
+                        if !a.is_zero() {
+                            prop_assert_eq!(c / a, b);
+                        }
+                        if !b.is_zero() {
+                            prop_assert_eq!(c / b, a);
+                        }
                     }
 
                     #[test]
                     fn mul_equals_div_numerator_can_be_zero(a in arb_fp(), b in arb_fp()) {
-                        prop_assume!(!b.is_zero());
-                        let c = a * b;
-                        prop_assert_eq!(c / b, a);
+                        if !b.is_zero() {
+                            let c = a * b;
+                            prop_assert_eq!(c / b, a);
+                        }
                     }
 
                     #[test]
@@ -1245,9 +1246,10 @@ macro_rules! fp31 {
 
                     #[test]
                     fn div_zero_by_anything_should_be_zero(a in arb_fp()) {
-                        prop_assume!(!a.is_zero());
-                        let result = $classname::zero()/a;
-                        assert!(result.is_zero())
+                        if !a.is_zero() {
+                            let result = $classname::zero()/a;
+                            assert!(result.is_zero())
+                        }
                     }
 
                     #[test]
@@ -1327,18 +1329,22 @@ macro_rules! fp31 {
                     }
                     #[test]
                     fn monty_inv_same_as_div(a in arb_fp(), b in arb_fp()) {
-                        let div_result = a/b;
-                        let result = (a.to_monty() * b.to_monty().inv()).to_norm();
+                        if !b.is_zero() {
+                            let div_result = a/b;
+                            let result = (a.to_monty() * b.to_monty().inv()).to_norm();
 
-                        prop_assert_eq!(div_result, result)
+                            prop_assert_eq!(div_result, result)
+                        }
                     }
 
                     #[test]
                     fn monty_div_same_as_div(a in arb_fp(), b in arb_fp()) {
-                        let div_result = a/b;
-                        let monty_result = (a.to_monty()/b.to_monty()).to_norm();
+                        if !b.is_zero() {
+                            let div_result = a/b;
+                            let monty_result = (a.to_monty()/b.to_monty()).to_norm();
 
-                        prop_assert_eq!(div_result, monty_result)
+                            prop_assert_eq!(div_result, monty_result)
+                        }
                     }
 
                     #[test]
