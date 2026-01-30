@@ -176,6 +176,9 @@ pub fn split_u128_to_62b(i: u128) -> (u64, u64) {
     ((i >> 62) as u64, (i & 0x3FFFFFFFFFFFFFFF) as u64)
 }
 
+/// WARNING: This macro is always exported, but will generate code that depends on proptest. Don't call it
+/// in a location where that won't compile.
+///
 /// Shared proptest strategy for generating arbitrary field elements with edge case coverage.
 ///
 /// This macro generates an `arb_fp` function that produces field elements with:
@@ -190,7 +193,11 @@ pub fn split_u128_to_62b(i: u128) -> (u64, u64) {
 /// - `$limbsizebits`: Bits per limb (31 or 62)
 /// - `$limbtype`: Limb type (`u32` or `u64`)
 /// - `$limb_mask`: Mask for valid limb bits (`0x7FFFFFFFu32` or `0x3FFFFFFFFFFFFFFFu64`)
-#[cfg(test)]
+///
+/// Note: This macro must NOT be gated by `#[cfg(test)]` because it's referenced via
+/// `$crate::define_arb_fp!` from within the `fp31!`/`fp62!` macros' test modules.
+/// When a downstream crate runs tests, `$crate` refers to gridiron compiled as a
+/// dependency (not in test mode), so the macro must always be exported.
 #[macro_export]
 macro_rules! define_arb_fp {
     ($classname:ident, $limbsizebits:expr, $limbtype:ty, $limb_mask:expr) => {
