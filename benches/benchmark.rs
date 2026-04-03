@@ -3,7 +3,7 @@ use criterion::{criterion_group, criterion_main};
 use gridiron::fp_256;
 use gridiron::fp_480;
 use num_traits::{Inv, Pow};
-use rand::RngCore;
+use rand::Rng;
 use rand::rngs::ThreadRng;
 use std::hint::black_box;
 use std::ops::Neg;
